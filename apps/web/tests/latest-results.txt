@@ -1,0 +1,114 @@
+✔ empty input stays home (2.373191ms)
+✔ domain resolves with HTTPS (0.608364ms)
+✔ explicit HTTP URL preserved (0.284501ms)
+✔ Chinese search and special characters round trip (0.245184ms)
+✔ unsupported schemes become search (0.179878ms)
+✔ script input cannot create a script URL (0.306454ms)
+✔ credentials are not opened as a website (0.134591ms)
+✔ built-in video and article route correctly (0.166918ms)
+✔ HTML injection is escaped (0.744591ms)
+✔ bookmarks deduplicate (0.674511ms)
+✔ history updates a consecutive visit (0.397395ms)
+✔ history is bounded at 1000 entries (15.394518ms)
+✔ invalid JSON falls back safely (1.086423ms)
+✔ new session always has one home page (5.545369ms)
+✔ pages keep independent navigation histories (0.263859ms)
+✔ closing active page selects its neighbor (0.206263ms)
+✔ closing inactive page preserves current page (0.614573ms)
+✔ closing last page creates a fresh home page (0.220479ms)
+✔ returning home preserves forward and back navigation (0.096998ms)
+✔ new navigation discards only that page forward history (0.077415ms)
+✔ session restores all pages, selection, draft and scroll (0.40085ms)
+✔ malformed saved state falls back to a usable home (0.297423ms)
+✔ malicious restored URLs are discarded (0.177054ms)
+✔ unknown ids cannot select or close a page (0.174281ms)
+✔ page limit prevents unbounded page creation (0.300984ms)
+✔ long page histories stay bounded and selected index stays valid (0.272844ms)
+✔ video cache targets the media currentSrc rather than the page URL (0.692286ms)
+✔ video cache resolves a relative source against its document (0.326706ms)
+✔ saved local playback is recognized without redownloading blob URLs (0.24809ms)
+✔ video cache rejects streaming, script and arbitrary blob sources (0.738995ms)
+✔ video cache does not guess a source when nothing is playing (0.13514ms)
+✔ video cache preserves signed queries and rejects credentials (0.110404ms)
+✔ private tab URLs drafts and titles never enter persistent session snapshots (0.238277ms)
+✔ private tabs are not added to recently closed (0.108143ms)
+✔ closed regular pages can be reopened with history and position (0.326685ms)
+✔ ending private session leaves regular pages intact (0.230567ms)
+✔ search engines receive intact query strings (0.532448ms)
+✔ subtitle parser reads SRT and rejects backwards timestamps (0.698534ms)
+ℹ tests 38
+ℹ suites 0
+ℹ pass 38
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50.646984
+✔ normalize handles BOM CRLF null bytes and repeated blank lines (1.283014ms)
+✔ all supported document extensions are recognized (1.753941ms)
+✔ legacy Word and unsupported files are rejected (0.281705ms)
+✔ empty or oversized document files are rejected (0.512166ms)
+✔ document metadata and Chinese text are preserved (0.342253ms)
+✔ empty text without file is rejected (0.360131ms)
+✔ textless PDF retains its original binary file (4.64486ms)
+✔ text length is bounded (3.054848ms)
+✔ title falls back to the first text line (1.992077ms)
+✔ mixed Chinese and English word count (1.208754ms)
+✔ reading progress clamps overscroll and handles short text (0.149366ms)
+✔ plain text HTML and script content are escaped (0.459764ms)
+✔ Markdown headings and paragraphs render safely (0.240206ms)
+✔ Markdown fenced code cannot inject HTML (0.0979ms)
+✔ UTF-8 and UTF-16 text decode correctly (0.416533ms)
+✔ GB18030 Chinese fallback decodes legacy documents (0.255423ms)
+✔ real bundled DOCX parser extracts Chinese and English (52.28664ms)
+Warning: Please use the `legacy` build in Node.js environments.
+✔ real bundled PDF parser extracts a text-layer PDF (90.939758ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 166.440589
+✔ adding reading storage migrates v1 without losing saved video (7.683095ms)
+✔ documents round trip text original file and reading progress (1.152613ms)
+✔ deleting a document does not delete videos (1.352957ms)
+✔ storage failed requests reject instead of reporting success (1.005708ms)
+✔ v2 video and reading records survive the new download-store migration (1.136068ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18.74736
+✔ playing video hides its entire control layer after inactivity (1.544447ms)
+✔ paused video keeps the controls including cache visible (0.171294ms)
+✔ tap on video toggles controls and cache together (0.168411ms)
+✔ interaction resets the hide timer (0.116146ms)
+✔ keyboard focus or scrubbing pins the control layer (0.184303ms)
+✔ ending or pausing brings hidden controls back (1.077016ms)
+✔ disposing a removed player cancels its hide timer (0.205525ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9.631419
+✔ browser download saves actual response bytes and supports exportable metadata (50.749736ms)
+✔ failed browser download retains partial bytes and resumes with a Range request (9.172838ms)
+✔ oversized server response is rejected without consuming a huge file (8.528023ms)
+✔ URL credentials are rejected before making a network request (1.762536ms)
+✔ resume validation rejects a different file or an incorrect byte range (0.991606ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.971156

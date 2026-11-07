@@ -1,0 +1,87 @@
+# zero red 0.2 验证报告
+
+环境：Debian Linux x86_64。官方 Swift 6.0.3 Linux 工具链；Node 24。
+
+以上是最初的 Linux 验证环境。2026-11-07 新增云 Mac 验证：Xcode 27.0（27A266a）、iOS 27.0、iPhone 18 Pro 模拟器。原生 App 已完成 Debug 编译及模拟器运行，54 项核心测试和 7 项 XCUITest 全部通过。完整功能范围和未验收项目见 [FEATURE_MATRIX.md](FEATURE_MATRIX.md)。
+
+| 验证 | 实际结果 |
+| --- | --- |
+| Swift 跨平台核心编译，警告视为错误 | 通过 |
+| Swift 核心测试 | 54 项通过、0 失败、0 跳过 |
+| 其中真实 HTTP 下载测试 | 8 项通过；测试旧 VideoDownloader 和共享规则，不覆盖新 URLSession 后台代理 |
+| JS 单元测试 | 73 项通过：38 导航/隐私/工具、18 阅读/解析、5 模拟 IndexedDB、7 控制栏状态、5 下载流程 |
+| PDF/DOCX 解析 | bundled PDF.js/Mammoth 在 Node 下真实样例解析通过；iOS PDFKit/ZIPFoundation 路径未运行 |
+| Swift App/UI 测试文件语法检查 | 通过 |
+| Xcode OpenStep 工程引用/源文件/共享 Scheme/Info.plist | 通过，含 ZIPFoundation 0.9.19 包声明 |
+| JS 语法、静态资源和 Service Worker 资源清单 | 通过 |
+| iOS Debug/Release 完整构建及静态分析 | 云 Mac / Xcode 27 通过，Release 构建含 arm64 和 x86_64 模拟器架构 |
+| 7 项 XCUITest | 云 Mac / iOS 27 模拟器全部通过，0 失败 |
+| 网页实际浏览器点击回归 | 未运行：当前无 Sites 支持的浏览器控制工具 |
+| iOS 27 基础界面 | 模拟器通过首页、页面管理、无痕不恢复、书签/历史持久化、下载错误和视频下载后重启播放测试 |
+| 后台下载、HLS、PiP、AirPlay、系统翻译和权限 | 未完成专项验收，仍需模拟器专项测试或真机 |
+| 第三方登录、支付、验证码和上传兼容性 | 未验收：需目标网站清单和实际设备 |
+| 默认浏览器资格 | 未取得：需 Apple 授权、App ID 和签名配置 |
+
+原生测试日志：[TestResults/core-tests-linux.log](TestResults/core-tests-linux.log)。网页日志位于网页工程 `tests/latest-results.txt`。
+
+本轮修复了无痕持久化泄露风险、DOCX 损坏文件误接受、下载失败立即重试的竞态、旧原生下载任务回调覆盖新任务的风险、阅读搜索刷新遗漏，以及文档原文件导出 MIME 处理。新增 CI 文件仅保存在工程中，尚未上传或执行。
+
+Mac 验证：`IOS_SIMULATOR_ID='<UDID>' bash scripts/test-ios.sh`。不得将 Linux 单元测试结果表述为完整 iPhone 功能验收通过。
+
+## 云 Mac 修复与验证
+
+- 将 WebKit Cookie 回调封装为显式的异步方法，修复视频播放和下载入口的编译错误。
+- Debug 使用当前架构，避免 App 和 Swift Package 模拟器架构不一致；工程生成器同步更新。
+- 画中画代理使用非隔离回调，更新界面时显式切回 MainActor，消除对应隔离警告。
+- 无痕开关绑定按目标状态更新；XCUITest 点击行内真实开关，并检查开启状态，避免 iOS 27 行容器被误点。
+- 保存 ZIPFoundation 0.9.19 的实际解析记录 `Package.resolved`。
+
+云端最终测试目录：`/Users/chuzu/zero-red-20261107/apps/ios/TestResults/cloud-final`。本地日志：`apps/ios/TestResults/cloud-mac-20261107`。连接和复测方法见 [CLOUD_MAC.md](CLOUD_MAC.md)。
+
+运行时仍记录到 AVAudioSession 在主线程激活的性能警告，以及一次视图更新期间发布状态的 SwiftUI 警告，需在后续专项调试中处理；当前测试未失败。AppIntents 元数据跳过提示源于项目没有 AppIntents 依赖。
+
+### 网页视频全屏修复（2026-11-07）
+
+网页视频默认采用 WebKit 系统全屏播放。地址栏旁新增“视频全屏播放”按钮，优先将当前 HTML5 视频送入系统播放器，不依赖提取 HTTP 直链；失败时才尝试已有独立播放器。网页未提供视频时给出明确提示。外部 App 跳转确认不再显示完整长链接，并处理目标 App 未安装的情况。
+
+原有 7 项界面测试通过；新增 `testWebVideoOpensFullscreenPlayer` 单独复测通过，使用实际 HTTP MP4 验证全屏、唤出控制栏及关闭返回网页。Release 构建及静态分析再次通过。首次新增测试因系统控制栏自动隐藏、关闭按钮定位不符而失败，修正测试交互后通过。日志位于云 Mac 的 `TestResults/cloud-first/video-targeted.log` 和 `video-release.log`。
+
+后续已按用户指定流程打开 `www.bilibili.com`，点击首页第一个视频进行专项验证，结果如下。跨域 iframe、其他网站格式和下载能力不能据此一并宣称通过。
+
+### B 站首页第一个视频专项验证（2026-11-07）
+
+实际页面：`https://m.bilibili.com/video/BV1VS4i6fEw2`，标题“铁锅/不锈钢锅都能用：一套物理不粘公式，煎鱼豆腐都不粘”。页面存在普通 HTML5 视频，最初仅载入元数据，尚未播放，未报告视频错误。
+
+修复：使用 `callAsyncJavaScript` 等待 `video.play()`，再请求并确认真实全屏状态，加入播放超时及全屏状态等待，避免调用无效时直接报告成功。同时启用 WebKit 标准元素全屏支持。
+
+临时真实网站 UI 用例验证了从首页点击该视频、使用地址栏全屏按钮、显示系统播放器控制栏、关闭后返回网页，测试方法通过（14.075 秒）。诊断 Xcode 进程在测试方法完成后未正常退出，已结束；不将该次运行的未完成 xcresult 当作完整测试包通过。临时联网用例和视频源日志代码已移除，不纳入默认测试套件。日志：云 Mac `TestResults/cloud-first/bilibili-fixed.log`。
+
+这项结果只覆盖上述视频和验证时的网站响应，不代表 B 站全部内容、受限内容或下载能力均已验收。
+
+### 视频缓存专项验证（2026-11-07）
+
+- 普通 MP4：通过 UI 下载 `/offline-sample.mp4`，令同一视频来源返回 HTTP 503 并确认不可访问，重启 App 后从离线列表播放，播放时间到达 `0:02 / 0:02`。加强后的常规回归用例通过（21.708 秒），不再只检查播放器是否出现。
+- B 站上述视频：通过“资料库 → 视频 → 当前网页的视频”的缓存图标下载完成；实际本地文件为 12,222,704 字节，下载记录 received/expected 与文件大小一致。SHA-256：`fbfed323912b39cd1d3762a66200c5baf11527bca3eb9855307946f884184ae6`。
+- 重启 App 后从 B 站离线条目打开本地文件，播放到 `0:01 / 3:39`，专项播放方法通过（10.772 秒）。首次进度定位因控制栏自动隐藏而失败，重新唤出控制栏并暂停读取时间后通过。
+- 测试使用 `ZeroRedUITests` 隔离资料库，没有清空用户正式资料库。没有关闭云 Mac 或 Tailscale 网络；普通 MP4 离线验证通过使视频来源不可用完成，B 站验证通过本地文件播放完成，未额外执行整台模拟器断网。
+- 本轮不覆盖 HLS、DRM、其他 B 站视频、暂停续传和真机后台下载。系统 WebKit 全屏播放器没有自定义缓存按钮，目前网页视频缓存入口位于资料库；自有 NativePlayer 的下载图标只属于自有播放器。
+
+云端日志：`TestResults/cloud-first/cache-both.log`、`cache-bilibili-play.log`。只读文件校验脚本：`TestResults/inspect-cache.py`。临时 B 站联网测试未加入默认测试套件；保留普通 MP4 来源不可用的回归测试及可控 fixture 路由。
+
+### 全屏播放器保留缓存按钮（2026-11-07）
+
+地址栏“视频全屏播放”入口改为打开带统一控制栏的 NativePlayer，可播放的 HTTP(S) 视频源使用网页 Cookie。打开时暂停网页媒体，关闭后恢复网页媒体能力。控制栏中的缓存按钮仅显示图标，与播放、进度等控件一起显示和隐藏，完成后变为勾号并禁用。
+
+普通视频 UI 回归已验证全屏内点击缓存、显示已保存状态，以及退出后离线列表存在文件（18.289 秒）。真实 B 站上述视频专项验证通过（29.336 秒）：在线播放进度前进、控件自动隐藏时缓存图标一起隐藏、点击画面时一起显示、全屏内缓存完成、离线列表存在下载文件。临时 B 站联网用例不纳入默认套件。
+
+日志：云 Mac `TestResults/cloud-first/fullscreen-cache.log`、`fullscreen-cache-bilibili.log`。这次验收覆盖 App 自己的全屏按钮入口；网站自己调用 WebKit 系统全屏时不保证出现 App 自定义控制栏。网页内部 blob/受保护流尚不支持这一带缓存按钮的原生入口，会保留在网页并提示未找到可播放源。
+
+### 补齐网页内直接播放路径（2026-11-07）
+
+用户截图证明网页内直接点击播放仍然使用系统播放器，上一次改动只覆盖地址栏入口。现已允许网页视频以内嵌模式初始化，在所有页面帧的 document-start 阶段接入可信点击和播放事件，将可用的 HTTP(S) 视频交给带缓存控制栏的 NativePlayer。网页视频画面上的覆盖层点击，以及网页调用的视频/元素全屏 API 也接入同一路径；保留源视频的起始播放位置。浏览器同时暂停网页媒体，避免重复播放。
+
+四项相关 UI 回归全部通过：网页内播放、网页自身全屏按钮、iframe 内播放及地址栏入口（50.404 秒，0 失败）。测试直接操作网页按钮，并检查原生缓存按钮和实际缓存结果。
+
+B 站真实流程：从首页进入上述视频，再直接点击网页视频画面中心；播放至 `0:03 / 3:39`，缓存按钮随控制栏隐藏/显示，点击后完成缓存，退出返回网页，专项用例通过（30.760 秒）。前面的临时测试因直链返回过渡页及底层视频控件被覆盖而未完成操作；最终测试通过真实画面坐标点击覆盖层，未使用地址栏全屏按钮。
+
+日志：`TestResults/cloud-first/webpage-play.log`、`direct-play-bilibili-tap.log`。此接入仍不代表 blob、加密流、全部 B 站视频和所有第三方播放器都已验收。

@@ -1,0 +1,10 @@
+{
+  "name": "zero-red-preview",
+  "private": true,
+  "scripts": {
+    "test": "node tests/core.test.cjs && node tests/reading.test.cjs && node tests/storage.test.cjs && node tests/media.test.cjs && node tests/download-flow.test.cjs"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.0.0"
+  }
+}

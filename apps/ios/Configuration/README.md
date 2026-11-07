@@ -1,0 +1,3 @@
+The default-browser entitlement template is intentionally NOT attached to the development target. Apple must approve the browser entitlement for the actual App ID and signing profile. Only after approval should a release configuration point CODE_SIGN_ENTITLEMENTS to the approved file and register HTTP/HTTPS handling according to Apple's current requirements. Changing a plist cannot grant this capability.
+
+The app already handles HTTP/HTTPS incoming URLs via onOpenURL, opens system app settings, and supports `zerored://open?url=<percent-encoded-https-url>` as a development deep link. Default-browser qualification remains an external prerequisite, not a completed feature.

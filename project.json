@@ -1,0 +1,28 @@
+{
+  "name": "zero red",
+  "slug": "zero-red",
+  "version": "0.2.0",
+  "type": "native-ios-app",
+  "languages": [
+    "zh-Hans",
+    "en"
+  ],
+  "apps": {
+    "ios": "apps/ios/ZeroRed.xcodeproj",
+    "web": "apps/web"
+  },
+  "preview_url": "https://zero-red-preview.alpinefoam3.chatgpt.site",
+  "excluded_scope": [
+    "cross-device-sync"
+  ],
+  "verification": {
+    "swift_core_tests": 54,
+    "web_unit_tests": 73,
+    "ios_build": "debug_release_simulator_passed_xcode_27",
+    "ios_device_tests": "not_run",
+    "browser_qa": "not_run",
+    "default_browser_entitlement": "requires_apple_approval",
+    "ios_ui_tests": 11,
+    "ios_static_analysis": "passed_xcode_27"
+  }
+}
