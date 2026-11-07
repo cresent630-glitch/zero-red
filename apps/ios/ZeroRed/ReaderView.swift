@@ -33,6 +33,9 @@ struct ReaderView: View {
     @EnvironmentObject private var reading: ReadingLibrary
     @Environment(\.dismiss) private var dismiss
     @State var document: ReadingDocument
+    private let initialProgress: Double
+    @State private var restored = false
+    init(document: ReadingDocument) { self._document = State(initialValue: document); self.initialProgress = document.progress }
     @AppStorage("readerSize") private var size = 19.0
     @AppStorage("readerSpacing") private var spacing = 10.0
     @AppStorage("readerSerif") private var serif = true
@@ -93,8 +96,10 @@ struct ReaderView: View {
                         }.padding(.horizontal, 26).padding(.vertical, 32).frame(maxWidth: 740)
                         .background(GeometryReader { geo in Color.clear.preference(key: ReadingOffset.self, value: geo.frame(in: .named("readerScroll")).minY).onAppear { height = geo.size.height }.onChange(of: geo.size.height) { _, value in height = value } })
                     }.coordinateSpace(name: "readerScroll").accessibilityIdentifier("readerContent")
-                    .onAppear { viewport = viewportGeometry.size.height; if document.progress > 0 && !paragraphs.isEmpty { proxy.scrollTo(min(paragraphs.count-1, Int(Double(paragraphs.count) * document.progress)), anchor: .top) } }
+                    .onAppear { viewport = viewportGeometry.size.height; if initialProgress > 0 && !paragraphs.isEmpty { proxy.scrollTo(min(paragraphs.count-1, Int(Double(paragraphs.count) * initialProgress)), anchor: .top) } }
+                    .task { await Task.yield(); restored = true }
                     .onPreferenceChange(ReadingOffset.self) { y in
+                        guard restored, height > viewport else { return }
                         document.progress = ReadingText.progress(offset: Double(-y), height: Double(height), viewport: Double(viewport))
                         pending?.cancel(); if saved { let copy = document; pending = Task { try? await Task.sleep(for: .milliseconds(500)); if !Task.isCancelled { reading.update(copy) } } }
                     }

@@ -93,14 +93,14 @@ private struct BrowserPage: View {
                 }
                 if engine.progress < 1 { ProgressView(value: engine.progress).tint(.primary) }
                 ZStack {
-                    WebSurface(engine: engine)
+                    WebSurface(engine: engine).simultaneousGesture(TapGesture().onEnded { focused = false })
                     if let error = engine.error { VStack(spacing: 18) { Image(systemName: "exclamationmark.shield").font(.largeTitle); Text(error).multilineTextAlignment(.center); Button(library.text("重试", "Retry")) { engine.webView.reload() } }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(uiColor: .systemBackground)) }
                 }
             } else {
-                Spacer()
+                Color.clear.contentShape(Rectangle()).onTapGesture { focused = false }
                 if session.privateMode { Label(library.text("无痕浏览", "Private browsing"), systemImage: "eye.slash").font(.caption).foregroundStyle(.secondary).padding(.bottom, 18) }
                 address.padding(.horizontal, 30).frame(maxWidth: 560)
-                Spacer()
+                Color.clear.contentShape(Rectangle()).onTapGesture { focused = false }
             }
         }
         .onAppear { input = engine.url?.absoluteString ?? "" }
@@ -116,7 +116,8 @@ private struct BrowserPage: View {
                 Button(action: siteAction) { Image(systemName: engine.url?.scheme == "https" ? "lock" : "exclamationmark.triangle").foregroundStyle(.secondary).frame(width: 28, height: 44) }.accessibilityLabel(library.text("网站安全与权限", "Website security and permissions"))
             } else { Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true) }
             TextField(library.text("输入网址或搜索", "Search or enter website"), text: $input).keyboardType(.webSearch).textInputAutocapitalization(.never).autocorrectionDisabled().submitLabel(.go).focused($focused).accessibilityIdentifier("addressInput")
-                .onSubmit { if let url = library.options.search.resolve(input) { focused = false; session.navigate(url) } }
+                .onSubmit { submitAddress() }
+            Button(action: submitAddress) { Image(systemName: "arrow.right.circle.fill").font(.title3).frame(width: 44, height: 44) }.accessibilityLabel(library.text("确认前往", "Go to address")).accessibilityIdentifier("addressGo").disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             if engine.active {
                 Menu {
                     Button(library.text("刷新", "Reload"), systemImage: "arrow.clockwise") { engine.webView.reload() }
@@ -132,6 +133,7 @@ private struct BrowserPage: View {
             }
         }.padding(.horizontal, 14).frame(minHeight: 56).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 17))
     }
+    private func submitAddress() { guard let url = library.options.search.resolve(input) else { return }; focused = false; session.navigate(url) }
     private func find(backwards: Bool = false) { guard !findText.isEmpty else { return }; engine.find(findText, backwards: backwards) { found = $0 } }
 }
 @MainActor
