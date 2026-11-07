@@ -44,4 +44,4 @@ npm test
 
 已记录的验证结果为 54 项 Swift 核心测试、73 项网页单元测试通过；2026-11-07 在云 Mac 上重新通过 54 项核心测试及 8 项 iOS 27 模拟器界面测试。完整记录见 `docs/TEST_REPORT.md`。这些结果不等于真机、全部网站兼容性或全部 Apple 系统功能验收通过。默认浏览器资格仍需 Apple 授权。
 
-项目初始化为本地 Git 仓库，未创建 GitHub 仓库、未推送任何外部远程仓库，也未部署新的站点。
+工程包含 GitHub Actions 配置。推送到 GitHub 的 `main` 分支后会自动运行 iOS 验证，也可在 Actions 中手动触发。云 Mac 验证记录与 GitHub Actions 的实际运行结果分别查看。
