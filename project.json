@@ -22,7 +22,7 @@
     "ios_device_tests": "not_run",
     "browser_qa": "not_run",
     "default_browser_entitlement": "requires_apple_approval",
-    "ios_ui_tests": 11,
+    "ios_ui_tests": 15,
     "ios_static_analysis": "passed_xcode_27"
   }
 }

@@ -7,6 +7,7 @@ final class BrowserSession: ObservableObject {
     @Published var selected = UUID()
     @Published var privateMode = false
     @Published var recentlyClosed: [BrowserTabRecord] = []
+    @Published private(set) var previews: [UUID: UIImage] = [:]
     private var engines: [UUID: BrowserEngine] = [:]
     private var privateStore = WKWebsiteDataStore.nonPersistent()
     private weak var library: LibraryStore?
@@ -24,6 +25,15 @@ final class BrowserSession: ObservableObject {
         if !tabs.contains(where: { $0.id == selected }) { selected = tabs[0].id }
     }
     func attach(_ library: LibraryStore) { self.library = library; applyOptions() }
+    func capturePreview(for id: UUID) async {
+        guard let engine = engines[id], engine.active, engine.webView.bounds.width > 0, engine.webView.bounds.height > 0 else { return }
+        let configuration = WKSnapshotConfiguration()
+        configuration.snapshotWidth = 160
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            engine.webView.takeSnapshot(with: configuration) { image, _ in continuation.resume(returning: image) }
+        }
+        if let image, tabs.contains(where: { $0.id == id }) { previews[id] = image }
+    }
     func engine(for id: UUID? = nil) -> BrowserEngine {
         let id = id ?? selected
         if let engine = engines[id] { return engine }
@@ -44,6 +54,7 @@ final class BrowserSession: ObservableObject {
             } else { self.tabs[index].visit(url, title: title) }
             if !self.tabs[index].isPrivate { self.library?.record(url, title: title) }
             self.scheduleSave()
+            Task { @MainActor [weak self] in await self?.capturePreview(for: id) }
         }
         engine.onScroll = { [weak self] y in
             guard let self, let index = self.tabs.firstIndex(where: { $0.id == id }) else { return }
@@ -87,6 +98,7 @@ final class BrowserSession: ObservableObject {
     func close(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         let tab = tabs.remove(at: index)
+        previews.removeValue(forKey: id)
         if !tab.isPrivate { recentlyClosed.insert(tab, at: 0); recentlyClosed = Array(recentlyClosed.prefix(10)) }
         engines[id]?.suspendMedia(); engines[id]?.webView.stopLoading(); engines.removeValue(forKey: id)
         if visibleTabs.isEmpty { let fresh = BrowserTabRecord(isPrivate: privateMode); tabs.append(fresh) }
@@ -106,12 +118,13 @@ final class BrowserSession: ObservableObject {
     }
     func endPrivateSession() {
         let ids = tabs.filter(\.isPrivate).map(\.id)
-        for id in ids { engines[id]?.suspendMedia(); engines[id]?.webView.stopLoading(); engines.removeValue(forKey: id) }
+        for id in ids { engines[id]?.suspendMedia(); engines[id]?.webView.stopLoading(); engines.removeValue(forKey: id); previews.removeValue(forKey: id) }
         tabs.removeAll(where: \.isPrivate); privateStore = .nonPersistent(); privateMode = false
         if tabs.isEmpty { tabs = [BrowserTabRecord()] }; selected = tabs[0].id; saveNow()
     }
     func applyOptions() { for engine in engines.values { engine.apply(library?.options ?? BrowserOptions()) } }
     func handleMemoryPressure() {
+        previews.removeAll()
         for id in Array(engines.keys) where id != selected { engines[id]?.suspendMedia(); engines[id]?.webView.stopLoading(); engines.removeValue(forKey: id) }
         saveNow()
     }

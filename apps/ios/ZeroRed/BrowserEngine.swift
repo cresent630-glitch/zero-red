@@ -24,7 +24,7 @@ private final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
             if body["type"] as? String == "scroll", let y = body["y"] as? Double, message.frameInfo.isMainFrame {
                 engine?.onScroll?(y)
             } else if body["type"] as? String == "videoPlayback", let source = body["source"] as? String, let url = AddressResolver.webURL(source) {
-                await engine?.requestVideoPlayback(url, position: body["position"] as? Double ?? 0)
+                await engine?.requestVideoPlayback(url, position: body["position"] as? Double ?? 0, frame: message.frameInfo)
             }
         }
     }
@@ -53,6 +53,9 @@ final class BrowserEngine: NSObject, ObservableObject, WKNavigationDelegate, WKU
     var restoreScroll = 0.0
     private var observations: [NSKeyValueObservation] = []
     private var filterRevision = 0
+    private var nativeVideoActive = false
+    private var nativeVideoSource: URL?
+    private var nativeVideoFrame: WKFrameInfo?
     init(isPrivate: Bool = false, dataStore: WKWebsiteDataStore? = nil, configuration provided: WKWebViewConfiguration? = nil) {
         self.isPrivate = isPrivate
         let configuration = provided ?? WKWebViewConfiguration()
@@ -185,12 +188,32 @@ final class BrowserEngine: NSObject, ObservableObject, WKNavigationDelegate, WKU
             completionHandler(.useCredential, URLCredential(user: parts[0], password: parts[1], persistence: isPrivate ? .none : .forSession))
         }
     }
-    func requestVideoPlayback(_ source: URL, position: Double) async {
-        guard requestedVideo == nil else { return }
-        let cookies = await cookies()
-        guard requestedVideo == nil else { return }
-        suspendMedia()
-        requestedVideo = PlayableItem(url: source, title: title, cookies: cookies, startTime: position.isFinite ? max(0, position) : 0)
+    func playerItem(_ source: URL, position: Double = 0, frame: WKFrameInfo? = nil) async -> PlayableItem {
+        nativeVideoActive = true
+        nativeVideoSource = source
+        nativeVideoFrame = frame
+        let storedCookies = await cookies()
+        _ = try? await webView.evaluateJavaScript("document.querySelectorAll('video,audio').forEach(v => v.pause())")
+        return PlayableItem(url: source, title: title, cookies: storedCookies, startTime: position.isFinite ? max(0, position) : 0, onClose: { [weak self] time in
+            self?.finishNativePlayback(position: time)
+        })
+    }
+    func finishNativePlayback(position: Double? = nil) {
+        nativeVideoActive = false
+        requestedVideo = nil
+        resumeMedia()
+        let source = nativeVideoSource?.absoluteString ?? ""
+        let frame = nativeVideoFrame
+        var arguments: [String: Any] = ["source": source, "position": NSNull()]
+        if let position, position.isFinite { arguments["position"] = max(0, position) }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = try? await self.webView.callAsyncJavaScript("window.__zeroRedReleaseVideo?.(source, position)", arguments: arguments, in: frame, contentWorld: .page)
+        }
+    }
+    func requestVideoPlayback(_ source: URL, position: Double, frame: WKFrameInfo?) async {
+        guard !nativeVideoActive, requestedVideo == nil else { return }
+        requestedVideo = await playerItem(source, position: position, frame: frame)
     }
     func fullscreenVideo() async -> String {
         let result = (try? await webView.callAsyncJavaScript(PageScripts.fullscreenVideo, arguments: [:], in: nil, contentWorld: .page)) as? String ?? "unsupported"
@@ -209,7 +232,7 @@ final class BrowserEngine: NSObject, ObservableObject, WKNavigationDelegate, WKU
         return values.compactMap(URL.init(string:))
     }
     func article() async throws -> ReadingDocument {
-        guard let value = try await webView.evaluateJavaScript(PageScripts.reader) as? [String: String], let text = value["text"], !text.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+        guard let value = try await webView.callAsyncJavaScript(PageScripts.reader, arguments: [:], in: nil, contentWorld: .page) as? [String: String], let text = value["text"], !text.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
         return ReadingDocument(title: value["title"] ?? title, text: text, source: value["source"] ?? url?.absoluteString ?? "", format: "html")
     }
     func find(_ text: String, backwards: Bool = false, completion: @escaping (Bool) -> Void) {

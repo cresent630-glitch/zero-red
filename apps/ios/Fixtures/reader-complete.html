@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Complete reading fixture</title>
+<header>Visible page introduction</header>
+<article><h1>First article</h1><p>First article body sentinel</p></article>
+<main><article><h2>Second article</h2><p>Second article body sentinel</p></article>
+<p>Text outside article sentinel</p><div id="shadow"></div><div id="dynamic"></div></main>
+<iframe src="reader-frame.html" title="Reading frame"></iframe>
+<p hidden>Hidden text sentinel</p><p style="display:none">Invisible text sentinel</p>
+<footer>Visible page conclusion</footer>
+<script>
+document.getElementById('shadow').attachShadow({mode:'open'}).innerHTML='<p>Shadow text sentinel</p>';
+setTimeout(()=>document.getElementById('dynamic').textContent='Dynamic text sentinel',200);
+</script></html>

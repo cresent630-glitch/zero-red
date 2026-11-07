@@ -9,6 +9,7 @@ struct PlayableItem: Identifiable {
     var source: URL?
     var cookies: [HTTPCookie] = []
     var startTime: Double = 0
+    var onClose: ((Double) -> Void)?
 }
 @MainActor
 final class NativePlayerModel: NSObject, ObservableObject, AVPictureInPictureControllerDelegate {
@@ -34,19 +35,26 @@ final class NativePlayerModel: NSObject, ObservableObject, AVPictureInPictureCon
         let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPCookiesKey: VideoPolicy.cookies(cookies, for: url)])
         player = AVPlayer(playerItem: AVPlayerItem(asset: asset)); super.init(); player.allowsExternalPlayback = true
         if startTime.isFinite && startTime > 0 { player.seek(to: CMTime(seconds: startTime, preferredTimescale: 600)) }
-        observer = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.3, preferredTimescale: 600), queue: .main) { [weak self] time in
-            Task { @MainActor in
-                guard let self else { return }; self.position = max(0, time.seconds.isFinite ? time.seconds : 0)
-                let seconds = self.player.currentItem?.duration.seconds ?? 0; self.duration = seconds.isFinite ? max(0, seconds) : 0
-                self.playing = self.player.rate > 0; self.cueText = self.cues.first(where: { $0.start <= self.position && self.position < $0.end })?.text ?? ""
-                if !self.playing { self.controlsVisible = true }
-            }
-        }
+        observePlayback()
         status = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
             Task { @MainActor in if item.status == .failed { self?.notice = item.error?.localizedDescription ?? "无法播放 / Playback failed" } }
         }
         Task {
             if let asset = player.currentItem?.asset, let group = try? await asset.loadMediaSelectionGroup(for: .legible) { self.group = group; captions = group.options }
+        }
+    }
+    private func observePlayback() {
+        guard observer == nil else { return }
+        observer = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.3, preferredTimescale: 600), queue: .main) { [weak self] time in
+            Task { @MainActor in
+                guard let self else { return }
+                self.position = max(0, time.seconds.isFinite ? time.seconds : 0)
+                let seconds = self.player.currentItem?.duration.seconds ?? 0
+                self.duration = seconds.isFinite ? max(0, seconds) : 0
+                self.playing = self.player.rate > 0
+                self.cueText = self.cues.first(where: { $0.start <= self.position && self.position < $0.end })?.text ?? ""
+                if !self.playing { self.controlsVisible = true }
+            }
         }
     }
     func attach(_ layer: AVPlayerLayer) {
@@ -55,10 +63,13 @@ final class NativePlayerModel: NSObject, ObservableObject, AVPictureInPictureCon
         pipObservation = pip?.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] pip, _ in Task { @MainActor in self?.pictureInPicturePossible = pip.isPictureInPicturePossible } }
     }
     func start() {
-        do { try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback); try AVAudioSession.sharedInstance().setActive(true); player.playImmediately(atRate: rate); reveal() }
+        let end = player.currentItem?.duration.seconds ?? 0
+        if end.isFinite && end > 0 && player.currentTime().seconds >= end - 0.15 { player.seek(to: .zero) }
+        observePlayback()
+        do { try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback); try AVAudioSession.sharedInstance().setActive(true); player.playImmediately(atRate: rate); playing = true; reveal() }
         catch { notice = error.localizedDescription }
     }
-    func toggle() { if player.rate > 0 { player.pause(); reveal() } else { start() } }
+    func toggle() { if player.rate > 0 { player.pause(); playing = false; reveal() } else { start() } }
     func reveal() {
         controlsVisible = true; hiding?.cancel()
         hiding = Task { [weak self] in try? await Task.sleep(for: .milliseconds(2400)); guard !Task.isCancelled, let self, self.player.rate > 0, !self.interacting, !UIAccessibility.isVoiceOverRunning else { return }; self.controlsVisible = false }
@@ -108,16 +119,16 @@ struct NativePlayer: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            PlayerSurface(model: model).ignoresSafeArea().contentShape(Rectangle()).onTapGesture { model.toggleControls() }
+            PlayerSurface(model: model).ignoresSafeArea().contentShape(Rectangle()).onTapGesture { model.toggle() }
             if !model.cueText.isEmpty { VStack { Spacer(); Text(model.cueText).foregroundStyle(.white).padding(8).background(.black.opacity(0.6)).padding(.bottom, model.controlsVisible ? 115 : 45) }.allowsHitTesting(false) }
             if model.controlsVisible {
                 VStack {
                     HStack { button("xmark", library.text("关闭", "Close")) { dismiss() }; Spacer(); Text(item.title).font(.caption).lineLimit(1); Spacer(); if model.pictureInPicturePossible { button("pip.enter", library.text("画中画", "Picture in Picture")) { model.pip?.startPictureInPicture(); model.reveal() } } }
-                    Spacer()
+                    Spacer().frame(maxWidth: .infinity).contentShape(Rectangle()).onTapGesture { model.toggle() }
                     VStack(spacing: 4) {
                         Slider(value: Binding(get: { min(model.position, max(model.duration, 1)) }, set: { value in model.player.seek(to: CMTime(seconds: value, preferredTimescale: 600)); model.reveal() }), in: 0...max(model.duration, 1), onEditingChanged: { editing in model.interacting = editing; model.reveal() }).disabled(model.duration <= 0).tint(.white).accessibilityLabel(library.text("播放进度", "Playback position"))
                         HStack {
-                            button(model.playing ? "pause.fill" : "play.fill", library.text("播放或暂停", "Play or pause")) { model.toggle() }
+                            button(model.playing ? "pause.fill" : "play.fill", library.text("播放或暂停", "Play or pause")) { model.toggle() }.accessibilityValue(model.playing ? "Playing" : "Paused")
                             Text(time(model.position) + " / " + time(model.duration)).font(.caption.monospacedDigit())
                             Spacer()
                             Menu { ForEach([Float(0.5), 1, 1.25, 1.5, 2], id: \.self) { value in Button("\(value.formatted())×") { model.rate = value; if model.playing { model.player.rate = value }; model.reveal() } } } label: { Text("\(model.rate.formatted())×").font(.caption).frame(minWidth: 36, minHeight: 44) }
@@ -130,14 +141,14 @@ struct NativePlayer: View {
                             }.disabled(cached || caching)
                         }
                     }
-                }.padding().foregroundStyle(.white).background(LinearGradient(colors: [.black.opacity(0.65), .clear, .clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+                }.padding().foregroundStyle(.white).background(LinearGradient(colors: [.black.opacity(0.65), .clear, .clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
                 .transition(.opacity)
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: model.controlsVisible)
         .accessibilityIdentifier("offlinePlayer")
         .onChange(of: downloads.error) { _, value in if let value { model.notice = value; downloads.error = nil } }
-        .onAppear { model.start() }.onDisappear { model.stop() }
+        .onAppear { model.start() }.onDisappear { model.stop(); item.onClose?(model.position) }
         .fileImporter(isPresented: $importingCaption, allowedContentTypes: [.plainText, .text], allowsMultipleSelection: false) { result in do { if let url = try result.get().first { try model.importCaptions(url) } } catch { model.notice = error.localizedDescription } }
         .alert(library.text("提示", "Notice"), isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) { Button(library.text("好", "OK")) { model.notice = nil } } message: { Text(model.notice ?? "") }
     }

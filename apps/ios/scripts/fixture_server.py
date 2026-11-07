@@ -1,12 +1,41 @@
 #!/usr/bin/env python3
 """Loopback fixtures for real URLSession downloads and simulator UI tests."""
 import argparse
+import io
+import re
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from functools import partial
 
 ROOT = Path(__file__).resolve().parent.parent / "Fixtures"
 class Handler(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    def send_head(self):
+        path = Path(self.translate_path(self.path))
+        if path.suffix.lower() != ".mp4" or not path.is_file():
+            return super().send_head()
+        data = path.read_bytes()
+        start, end = 0, len(data) - 1
+        requested = self.headers.get("Range")
+        if requested:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested)
+            if not match or not any(match.groups()):
+                self.send_error(416); return None
+            left, right = match.groups()
+            if left:
+                start = int(left); end = min(int(right), end) if right else end
+            else:
+                start = max(0, len(data) - int(right))
+            if start > end or start >= len(data):
+                self.send_error(416); return None
+        self.send_response(206 if requested else 200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if requested: self.send_header("Content-Range", f"bytes {start}-{end}/{len(data)}")
+        self.end_headers()
+        return io.BytesIO(data[start:end + 1])
+
     def do_POST(self):
         if self.path not in ["/test/offline-media/enable", "/test/offline-media/disable"]:
             self.send_error(404); return
@@ -20,10 +49,11 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_error(503, "Media source disabled for offline playback test"); return
             self.path = "/sample.mp4"
         if route == "/redirect":
-            self.send_response(302); self.send_header("Location", "/sample.mp4"); self.end_headers(); return
+            self.send_response(302); self.send_header("Location", "/sample.mp4"); self.send_header("Content-Length", "0"); self.end_headers(); return
         if route == "/redirect-other":
             self.send_response(302)
             self.send_header("Location", f"http://localhost:{self.server.server_port}/no-cookie.mp4")
+            self.send_header("Content-Length", "0")
             self.end_headers(); return
         if route in ["/cookie.mp4", "/no-cookie.mp4", "/referer.mp4"]:
             ok = True

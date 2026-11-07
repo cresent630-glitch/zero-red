@@ -34,7 +34,7 @@ struct LibraryView: View {
             }.navigationTitle("zero red").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button(library.text("完成", "Done")) { dismiss() } } }
             .task { detected = await engine.videoLinks() }
-            .sheet(item: $selectedDocument) { ReaderView(document: $0) }
+            .fullScreenCover(item: $selectedDocument) { ReaderView(document: $0) }
             .sheet(item: $editingDocument) { document in DocumentEditor(document: document) }
             .sheet(item: $preview) { FilePreview(url: $0.url) }
             .sheet(item: $shared) { ShareSheet(items: $0.items) }

@@ -54,7 +54,7 @@ struct ReaderView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                if !focus { icon("chevron.left", library.text("返回", "Back")) { dismiss() } }
+                if !focus { icon("chevron.left", library.text("返回", "Back")) { dismiss() }.accessibilityIdentifier("readerBack") }
                 Spacer()
                 icon(saved ? "checkmark" : "arrow.down.to.line", library.text(saved ? "已缓存" : "缓存当前文本", saved ? "Saved" : "Save current text")) { cache() }.disabled(saved)
                 if !focus {
@@ -92,7 +92,7 @@ struct ReaderView: View {
                             }
                         }.padding(.horizontal, 26).padding(.vertical, 32).frame(maxWidth: 740)
                         .background(GeometryReader { geo in Color.clear.preference(key: ReadingOffset.self, value: geo.frame(in: .named("readerScroll")).minY).onAppear { height = geo.size.height }.onChange(of: geo.size.height) { _, value in height = value } })
-                    }.coordinateSpace(name: "readerScroll")
+                    }.coordinateSpace(name: "readerScroll").accessibilityIdentifier("readerContent")
                     .onAppear { viewport = viewportGeometry.size.height; if document.progress > 0 && !paragraphs.isEmpty { proxy.scrollTo(min(paragraphs.count-1, Int(Double(paragraphs.count) * document.progress)), anchor: .top) } }
                     .onPreferenceChange(ReadingOffset.self) { y in
                         document.progress = ReadingText.progress(offset: Double(-y), height: Double(height), viewport: Double(viewport))

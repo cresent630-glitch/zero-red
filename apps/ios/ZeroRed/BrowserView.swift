@@ -20,9 +20,7 @@ struct BrowserView: View {
                 Task {
                     let engine = session.engine()
                     if let url = await engine.videoLinks().first {
-                        let cookies = await engine.cookies()
-                        engine.suspendMedia()
-                        player = PlayableItem(url: url, title: engine.title, cookies: cookies)
+                        player = await engine.playerItem(url)
                     } else {
                         library.downloadError = library.text("当前网页尚未提供可播放的视频。请先在网页内开始播放；若网页要求打开客户端，请尝试桌面网站。", "No playable video is available yet. Start playback on the page first. If the site requires its app, try Desktop website.")
                     }
@@ -32,7 +30,7 @@ struct BrowserView: View {
                 control("chevron.left", library.text("后退", "Back")) { session.move(-1) }.disabled(!session.record.canBack && !session.engine().canGoBack)
                 Spacer(); control("chevron.right", library.text("前进", "Forward")) { session.move(1) }.disabled(!session.record.canForward && !session.engine().canGoForward)
                 Spacer(); control("house", library.text("首页", "Home")) { session.home() }
-                Spacer(); Button { tabsVisible = true } label: { Text("\(session.visibleTabs.count)").font(.caption.monospacedDigit()).frame(width: 24, height: 25).overlay(RoundedRectangle(cornerRadius: 5).stroke(lineWidth: 1.4)).frame(width: 44, height: 44) }.accessibilityLabel(library.text("页面管理", "Manage pages"))
+                Spacer(); Button { Task { await session.capturePreview(for: session.selected); tabsVisible = true } } label: { Text("\(session.visibleTabs.count)").font(.caption.monospacedDigit()).frame(width: 24, height: 25).overlay(RoundedRectangle(cornerRadius: 5).stroke(lineWidth: 1.4)).frame(width: 44, height: 44) }.accessibilityLabel(library.text("页面管理", "Manage pages"))
                 Spacer(); control("books.vertical", library.text("资料库", "Library")) { libraryVisible = true }
             }.padding(.horizontal, 18).padding(.vertical, 7).background(.bar)
         }
@@ -43,7 +41,7 @@ struct BrowserView: View {
         .onReceive(session.engine().$requestedVideo) { item in
             guard let item else { return }
             session.engine().requestedVideo = nil
-            guard player == nil, !libraryVisible else { return }
+            guard player == nil, !libraryVisible else { item.onClose?(item.startTime); return }
             player = item
         }
         .onOpenURL { url in
@@ -58,8 +56,8 @@ struct BrowserView: View {
         .sheet(isPresented: $libraryVisible) { LibraryView(engine: session.engine(), session: session) { url in session.navigate(url); libraryVisible = false } }
         .sheet(isPresented: $tabsVisible) { TabOverview(session: session) }
         .sheet(isPresented: $websiteVisible) { SiteSettings(engine: session.engine()) }
-        .sheet(item: $reader) { ReaderView(document: $0) }
-        .fullScreenCover(item: $player, onDismiss: { session.engine().resumeMedia() }) { NativePlayer(item: $0) }
+        .fullScreenCover(item: $reader) { ReaderView(document: $0) }
+        .fullScreenCover(item: $player, onDismiss: { player = nil; session.engine().finishNativePlayback() }) { NativePlayer(item: $0) }
         .sheet(item: $shared) { ShareSheet(items: $0.items) }
         .alert(library.text("提示", "Notice"), isPresented: Binding(get: { library.downloadError != nil && !libraryVisible }, set: { if !$0 { library.downloadError = nil } })) { Button(library.text("好", "OK")) { library.downloadError = nil } } message: { Text(library.downloadError ?? "") }
     }
@@ -120,9 +118,6 @@ private struct BrowserPage: View {
             TextField(library.text("输入网址或搜索", "Search or enter website"), text: $input).keyboardType(.webSearch).textInputAutocapitalization(.never).autocorrectionDisabled().submitLabel(.go).focused($focused).accessibilityIdentifier("addressInput")
                 .onSubmit { if let url = library.options.search.resolve(input) { focused = false; session.navigate(url) } }
             if engine.active {
-                Button(action: videoAction) { Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 32, height: 44) }
-                    .accessibilityLabel(library.text("视频全屏播放", "Play video fullscreen"))
-                    .accessibilityIdentifier("videoFullscreen")
                 Menu {
                     Button(library.text("刷新", "Reload"), systemImage: "arrow.clockwise") { engine.webView.reload() }
                     Button(library.text("分享网页", "Share page"), systemImage: "square.and.arrow.up", action: shareAction)
@@ -133,7 +128,7 @@ private struct BrowserPage: View {
                     Toggle(library.text("桌面网站", "Desktop website"), isOn: $library.options.desktop)
                     Picker(library.text("页面缩放", "Page zoom"), selection: $library.options.zoom) { ForEach([0.75,1,1.25,1.5,2], id: \.self) { value in Text("\(Int(value*100))%").tag(value) } }
                     Button(library.text("在系统浏览器打开", "Open in system browser"), systemImage: "safari") { if let url = engine.url { UIApplication.shared.open(url) } }
-                } label: { Image(systemName: "ellipsis").frame(width: 32, height: 44) }.accessibilityLabel(library.text("网页操作", "Page actions"))
+                } label: { Image(systemName: "ellipsis").frame(width: 32, height: 44) }.accessibilityLabel(library.text("网页操作", "Page actions")).accessibilityIdentifier("pageActions")
             }
         }.padding(.horizontal, 14).frame(minHeight: 56).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 17))
     }
@@ -163,18 +158,33 @@ struct TabOverview: View {
     @ObservedObject var session: BrowserSession
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            ScrollView {
+                VStack(spacing: 18) {
                     Toggle(library.text("无痕浏览", "Private browsing"), isOn: Binding(get: { session.privateMode }, set: { enabled in
                         if session.privateMode != enabled { session.togglePrivate() }
                     }))
                     if session.privateMode { Text(library.text("不记录历史；无痕标签不会恢复。主动保存的文件会保留。", "History is not recorded; private tabs are not restored. Files you explicitly save are retained.")).font(.caption).foregroundStyle(.secondary) }
-                }
-                ForEach(session.visibleTabs) { tab in
-                    HStack { Button { session.select(tab.id); dismiss() } label: { VStack(alignment: .leading) { Text(tab.title).lineLimit(1); Text(tab.url?.host ?? library.text("起始页", "Start page")).font(.caption).foregroundStyle(.secondary) } }; Spacer(); if tab.id == session.selected { Image(systemName: "checkmark") }; Button { session.close(tab.id) } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }.buttonStyle(.borderless).accessibilityLabel(library.text("关闭页面", "Close page")) }
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                    ForEach(session.visibleTabs) { tab in
+                        VStack(alignment: .leading, spacing: 0) {
+                            ZStack(alignment: .topTrailing) {
+                                Button { session.select(tab.id); dismiss() } label: {
+                                    ZStack {
+                                        Color(uiColor: .secondarySystemBackground)
+                                        if let image = session.previews[tab.id] { Image(uiImage: image).resizable().scaledToFill().accessibilityLabel(library.text("网页预览", "Page preview")) }
+                                        else { VStack(spacing: 12) { Image(systemName: tab.url == nil ? "magnifyingglass" : "globe").font(.largeTitle); Text(tab.url?.host ?? library.text("起始页", "Start page")).font(.caption).lineLimit(2) }.padding() }
+                                    }.frame(height: 210).clipped().contentShape(Rectangle())
+                                }.buttonStyle(.plain).accessibilityLabel(tab.title + ", " + (tab.url?.host ?? library.text("起始页", "Start page"))).accessibilityValue(session.previews[tab.id] == nil ? library.text("暂无网页预览", "Page preview unavailable") : library.text("已载入网页预览", "Page preview available"))
+                                Button { session.close(tab.id) } label: { Image(systemName: "xmark").font(.caption.bold()).frame(width: 36, height: 36).background(.regularMaterial, in: Circle()) }.buttonStyle(.plain).padding(6).accessibilityLabel(library.text("关闭页面", "Close page"))
+                            }
+                            HStack { Text(tab.title).font(.caption).lineLimit(1); Spacer(minLength: 2); if tab.id == session.selected { Image(systemName: "checkmark.circle.fill").font(.caption) } }.padding(10)
+                        }.background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 15)).clipShape(RoundedRectangle(cornerRadius: 15))
+                            .overlay(RoundedRectangle(cornerRadius: 15).stroke(tab.id == session.selected ? Color.primary : Color.clear, lineWidth: 2))
+                    }
                 }
                 if !session.privateMode && !session.recentlyClosed.isEmpty { Section(library.text("最近关闭", "Recently closed")) { ForEach(session.recentlyClosed) { tab in Button(tab.title) { session.reopen(tab.id); dismiss() } } } }
                 if session.privateMode { Button(library.text("结束无痕会话", "End private session"), role: .destructive) { session.endPrivateSession() } }
+                }.padding()
             }.navigationTitle(library.text("页面", "Pages"))
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button(library.text("新建", "New"), systemImage: "plus") { session.create(); dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button(library.text("完成", "Done")) { dismiss() } } }
         }

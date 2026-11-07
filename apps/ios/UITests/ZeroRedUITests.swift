@@ -31,7 +31,7 @@ final class ZeroRedUITests: XCTestCase {
         XCTAssertTrue(app.webViews.buttons["Play in page"].firstMatch.waitForExistence(timeout: 15))
     }
     private func assertFullscreenCacheButton() {
-        let surface = app.otherElements["offlinePlayer"]
+        let surface = app.otherElements["offlinePlayer"].firstMatch
         XCTAssertTrue(surface.waitForExistence(timeout: 10), app.debugDescription)
         if !app.buttons["Save current video"].exists { surface.tap() }
         XCTAssertTrue(app.buttons["Save current video"].exists, app.debugDescription)
@@ -53,10 +53,68 @@ final class ZeroRedUITests: XCTestCase {
         app.webViews.buttons["Play in page"].firstMatch.tap()
         assertFullscreenCacheButton()
     }
+    func testWebpageVideoCanReopenThreeTimes() {
+        openVideoControls("video-controls.html")
+        for _ in 0..<3 {
+            app.webViews.buttons["Play in page"].firstMatch.tap()
+            assertFullscreenCacheButton()
+            app.buttons["Close"].tap()
+            XCTAssertTrue(app.webViews.buttons["Play in page"].firstMatch.waitForExistence(timeout: 5))
+        }
+    }
+    func testTappingVideoPausesAndResumes() {
+        openVideoControls("video-controls.html")
+        app.webViews.buttons["Play in page"].firstMatch.tap()
+        let surface = app.otherElements["offlinePlayer"].firstMatch
+        XCTAssertTrue(surface.waitForExistence(timeout: 10))
+        let notice = app.alerts["Notice"]
+        XCTAssertFalse(notice.exists, notice.debugDescription)
+        for _ in 0..<2 {
+            if !app.buttons["Play or pause"].exists { surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+            let control = app.buttons["Play or pause"]
+            let old = control.value as? String
+            surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", old ?? ""), object: control)
+            XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 3), .completed, app.debugDescription)
+        }
+    }
+    func testReaderIsFullscreenAndIncludesAllVisibleSections() {
+        let input = app.textFields["addressInput"]
+        input.tap(); input.typeText("http://localhost:8765/reader-complete.html\n")
+        XCTAssertTrue(app.webViews.staticTexts["First article"].firstMatch.waitForExistence(timeout: 10))
+        app.buttons["pageActions"].tap()
+        app.buttons["Reader / translate text"].tap()
+        XCTAssertTrue(app.buttons["Save current text"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.sheets.count, 0)
+        let content = app.scrollViews["readerContent"].firstMatch
+        XCTAssertTrue(content.exists)
+        for text in ["First article body sentinel", "Second article body sentinel", "Text outside article sentinel", "Shadow text sentinel", "Dynamic text sentinel", "Embedded text sentinel", "Visible page introduction", "Visible page conclusion"] {
+            XCTAssertTrue(content.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists, text)
+        }
+        XCTAssertFalse(content.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Hidden text sentinel")).firstMatch.exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Fullscreen-reader"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["readerBack"].tap()
+        XCTAssertTrue(app.buttons["pageActions"].waitForExistence(timeout: 5))
+    }
+    func testPageOverviewHasRealPreview() {
+        navigateToFixture()
+        app.buttons["Manage pages"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "value == %@", "Page preview available")).firstMatch.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(app.buttons["Close page"].firstMatch.exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Page-preview-grid"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
     func testWebVideoOpensFullscreenPlayer() {
         navigateToFixture()
-        app.buttons["videoFullscreen"].tap()
-        let surface = app.otherElements["offlinePlayer"]
+        XCTAssertFalse(app.buttons["videoFullscreen"].exists)
+        app.buttons["pageActions"].tap()
+        app.buttons["Play video fullscreen"].tap()
+        let surface = app.otherElements["offlinePlayer"].firstMatch
         XCTAssertTrue(surface.waitForExistence(timeout: 10), app.debugDescription)
         if !app.buttons["Save current video"].exists { surface.tap() }
         XCTAssertTrue(app.buttons["Save current video"].exists, app.debugDescription)

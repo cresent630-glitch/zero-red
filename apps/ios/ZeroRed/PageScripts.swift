@@ -5,6 +5,15 @@ enum PageScripts {
     (() => {
         let gesture = -Infinity;
         let lastSource = '', lastRequest = -Infinity;
+        window.__zeroRedReleaseVideo = (source, position) => {
+            lastSource = ''; lastRequest = -Infinity;
+            document.querySelectorAll('video').forEach(video => {
+                if ((video.currentSrc || video.src) === source) {
+                    video.pause();
+                    if (Number.isFinite(position)) { try { video.currentTime = Number.isFinite(video.duration) && position >= video.duration - 0.15 ? 0 : position; } catch (_) {} }
+                }
+            });
+        };
         for (const name of ['pointerdown', 'touchstart', 'keydown']) {
             document.addEventListener(name, event => { if (event.isTrusted) gesture = Date.now(); }, true);
         }
@@ -20,7 +29,7 @@ enum PageScripts {
             const now = Date.now();
             if (source === lastSource && now - lastRequest < 1000) return true;
             lastSource = source; lastRequest = now;
-            const position = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+            const position = video.ended || (Number.isFinite(video.duration) && video.currentTime >= video.duration - 0.15) ? 0 : (Number.isFinite(video.currentTime) ? video.currentTime : 0);
             video.pause();
             window.webkit.messageHandlers.zeroRed.postMessage({type:'videoPlayback', source, position});
             return true;
@@ -73,7 +82,36 @@ enum PageScripts {
     })();
     """#
     static let reader = #"""
-    (()=>{const root=(document.querySelector('article')||document.querySelector('main')||document.body).cloneNode(true);root.querySelectorAll('script,style,nav,header,footer,aside,form,button,iframe,svg,noscript,[hidden],[aria-hidden="true"]').forEach(n=>n.remove());const block=new Set(['P','DIV','SECTION','ARTICLE','MAIN','H1','H2','H3','H4','LI','UL','OL','BLOCKQUOTE','PRE','TR']);function text(n){if(n.nodeType===3)return n.nodeValue;if(n.nodeType!==1)return '';if(n.tagName==='BR')return '\n';const s=Array.from(n.childNodes,text).join('');return block.has(n.tagName)?'\n\n'+s+'\n\n':s}return {title:document.title||location.hostname,text:text(root).replace(/\n{3,}/g,'\n\n').trim().slice(0,1000000),source:location.href}})()
+    await new Promise(resolve => {
+        let quiet;
+        const observer = new MutationObserver(() => { clearTimeout(quiet); quiet = setTimeout(finish, 400); });
+        const finish = () => { observer.disconnect(); clearTimeout(quiet); clearTimeout(maximum); resolve(); };
+        const maximum = setTimeout(finish, 1800);
+        observer.observe(document, {subtree:true, childList:true, characterData:true});
+        quiet = setTimeout(finish, 400);
+    });
+    const skip = new Set(['SCRIPT','STYLE','NOSCRIPT','TEMPLATE','SVG','CANVAS','INPUT']);
+    const blocks = new Set(['P','DIV','SECTION','ARTICLE','MAIN','HEADER','FOOTER','NAV','ASIDE','H1','H2','H3','H4','H5','H6','LI','UL','OL','BLOCKQUOTE','PRE','TR','FIGCAPTION']);
+    let length = 0;
+    function text(node) {
+        if (!node) return '';
+        if (length >= 1000000) return '';
+        if (node.nodeType === 3) { length += node.nodeValue.length; return node.nodeValue; }
+        if (node.nodeType !== 1 && node.nodeType !== 11) return '';
+        if (node.nodeType === 1) {
+            if (skip.has(node.tagName) || node.hidden || node.getAttribute('aria-hidden') === 'true') return '';
+            const style = node.ownerDocument.defaultView.getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return '';
+            if (node.tagName === 'BR') return '\n';
+            if (node.tagName === 'IFRAME') { try { return '\n\n' + text(node.contentDocument.body) + '\n\n'; } catch (_) { return ''; } }
+            if (node.tagName === 'DETAILS' && !node.open) return text(node.querySelector('summary'));
+        }
+        const children = node.shadowRoot || node;
+        const result = Array.from(children.childNodes, text).join('');
+        if (/^H[1-6]$/.test(node.tagName || '')) return '\n\n' + '#'.repeat(Number(node.tagName[1])) + ' ' + result + '\n\n';
+        return blocks.has(node.tagName) ? '\n\n' + result + '\n\n' : result;
+    }
+    return {title:document.title || location.hostname, text:text(document.body).replace(/\n[ \t]+/g,'\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,1000000), source:location.href};
     """#
     static let bridge = #"""
     (()=>{let last=0;addEventListener('scroll',()=>{if(Date.now()-last<600)return;last=Date.now();window.webkit.messageHandlers.zeroRed.postMessage({type:'scroll',y:scrollY})},{passive:true});})()
