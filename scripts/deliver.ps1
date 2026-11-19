@@ -216,7 +216,8 @@ try {
     if ($stepIpa.Conclusion -ne 'success') { throw '真机 IPA 构建步骤未成功，未导入任何产物。' }
     if ($stepPublish.Conclusion -ne 'success') { throw 'Release 发布步骤未成功。' }
     $receipt.coreTests = 'cloud-success'
-    $receipt.uiTests = if ($stepUI.Conclusion -eq 'success') { 'cloud-success' } else { "not-run ($($stepUI.Conclusion))" }
+    # 界面测试步骤带 continue-on-error，结论永远是 success；真实结果在下面按 ui-status.txt 记账。
+    $receipt.uiTests = 'unknown'
     $receipt.simulatorRelease = if ($stepRelease.Conclusion -eq 'success') { 'cloud-success' } else { "not-run ($($stepRelease.Conclusion))" }
 
     # 7. 下载 Release 产物并校验摘要
@@ -238,6 +239,27 @@ try {
     }
     if ($null -eq $ipaZip) { throw 'Release 缺少 ZeroRed-ipa.zip。' }
     $receipt.downloads = $dlDir
+
+    # 6.5 界面测试的真实结论：读工作流写下的 ui-status.txt，不信步骤结论。
+    if ($stepUI.State -eq 'missing' -or $stepUI.Conclusion -eq 'skipped') {
+        $receipt.uiTests = 'not-run'
+    } else {
+        $receipt.uiTests = 'not-verified（未找到 ui-status.txt）'
+        $logsZip = Join-Path $dlDir 'ZeroRed-build-logs.zip'
+        if (Test-Path -LiteralPath $logsZip) {
+            try {
+                $logsDir = Join-Path $dlDir 'logs'
+                Expand-Archive -LiteralPath $logsZip -DestinationPath $logsDir -Force
+                $statusFile = @(Get-ChildItem -LiteralPath $logsDir -Recurse -Filter 'ui-status.txt' | Select-Object -First 1)[0]
+                if ($statusFile) {
+                    $status = ((Get-Content -LiteralPath $statusFile.FullName | Where-Object { $_ -match '^status=' }) -join '') -replace '^status=', ''
+                    $only = ((Get-Content -LiteralPath $statusFile.FullName | Where-Object { $_ -match '^only_testing=' }) -join '') -replace '^only_testing=', ''
+                    if ($status -eq 'passed') { $receipt.uiTests = "cloud-passed（$only）" }
+                    elseif ($status -eq 'failed') { $receipt.uiTests = "cloud-failed（$only，见构建日志）" }
+                }
+            } catch { Write-Output "界面测试结论读取失败：$($_.Exception.Message)" }
+        }
+    }
 
     # 8. 解压并校验导入（提交一致性 + SHA256 + 真机格式）
     $extract = Join-Path $dlDir 'extracted'

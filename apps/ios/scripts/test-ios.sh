@@ -37,5 +37,13 @@ ONLY_FLAGS=""
 if [[ -n "${ONLY_TESTING:-}" ]]; then
   for name in $ONLY_TESTING; do ONLY_FLAGS="$ONLY_FLAGS -only-testing:ZeroRedUITests/ZeroRedUITests/$name"; done
 fi
+# 工作流把界面测试标成 continue-on-error（结果不稳定，不该拦住安装包），
+# 步骤结论会永远是 success；这里落一份真实结论，交付脚本按它记账。
+set +e
 xcodebuild -project "$TASK_ROOT/ZeroRed.xcodeproj" -scheme ZeroRed -configuration Debug -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_ID" -derivedDataPath "$TASK_RESULTS/DerivedData" -resultBundlePath "$TASK_RESULTS/UITests.xcresult" CODE_SIGNING_ALLOWED=NO test $ONLY_FLAGS 2>&1 | tee "$TASK_RESULTS/xcodebuild.log"
+TEST_STATUS=${PIPESTATUS[0]}
+set -e
+if [[ "$TEST_STATUS" -eq 0 ]]; then UI_RESULT=passed; else UI_RESULT=failed; fi
+printf 'only_testing=%s\nstatus=%s\n' "${ONLY_TESTING:-all}" "$UI_RESULT" > "$TASK_RESULTS/ui-status.txt"
+[[ "$TEST_STATUS" -eq 0 ]]
 xcodebuild -project "$TASK_ROOT/ZeroRed.xcodeproj" -scheme ZeroRed -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath "$TASK_RESULTS/ReleaseDerivedData" CODE_SIGNING_ALLOWED=NO build analyze 2>&1 | tee "$TASK_RESULTS/release-analyze.log"
