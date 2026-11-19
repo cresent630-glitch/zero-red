@@ -11,6 +11,8 @@
 | `.github/workflows/ios-cloud-build.yml` | 核心测试 → 可选界面测试 → 模拟器 Release/静态分析 → 未签名真机 IPA → 发布 Release | `xcode-27`（GitHub 托管，Xcode 27 + iOS 27 模拟器） | 仅手动 `workflow_dispatch` |
 | `.github/workflows/web-tests.yml` | 网页预览单元测试（`npm test`） | `ubuntu-latest` | 手动 + `apps/web` 变更推送 |
 
+网页测试固定 Node 22（pdf.js 依赖 `Promise.withResolvers`，Node 20 会让阅读器 PDF 用例失败）；本机跑网页测试也请用 Node 22+。
+
 iOS 工作流只手动触发：交付脚本按当前提交的完整 SHA 触发，保证「构建的源码」与「要交付的源码」是同一个提交。网页测试与 iOS 交付互相独立，网页回归失败不会让真机包停摆。
 
 ## 输入
