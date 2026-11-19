@@ -24,13 +24,14 @@ iOS 工作流只手动触发：交付脚本按当前提交的完整 SHA 触发�
 | `run_unit_tests` | 开 | `apps/ios/scripts/test-core.sh`：离线 fixture 服务 + `swift test`，54 项核心测试，`-warnings-as-errors`。这是交付的硬门槛。 |
 | `run_ui_tests` | 关 | `apps/ios/scripts/test-ios.sh`：iOS 27 模拟器界面测试。托管运行器上视频/媒体相关用例历史上不稳定（2026-11-07 的运行中 3 个视频用例失败），默认不跑；开了就要如实记录结论。 |
 | `build_simulator_release` | 开 | `scripts/cloud-release.sh`：模拟器 Release 编译并 `analyze` 静态分析。 |
+| `ui_test_only` | 空 | 只跑指定的界面测试用例（空格分隔，例如 `testDesignScreenshots`）。用于单独取视觉验收截图，避免等待整个套件。 |
 
 ## 产物
 
 运行成功后，同一仓库的 **Releases** 会出现标签 `build-<运行ID>-<尝试>` 的发布：
 
 - `ZeroRed-ipa.zip`：解压后是 `ipa/` 目录，含 `ZeroRed-<版本>-<构建号>-<UTC时间>-unsigned.ipa`、`latest.json`、`.sha256` 和 `build-source.txt`。
-- `ZeroRed-build-logs.zip`：编译日志、模拟器 Release 日志、界面测试日志与 `.xcresult`（失败时也发布，用于诊断）。
+- `ZeroRed-build-logs.zip`：编译日志、模拟器 Release 日志、界面测试日志与 `.xcresult`（失败时也发布，用于诊断）。界面测试运行时还包含导出的 `ui-screens/` 截图与 `manifest.json` 名称映射；DerivedData 与 SwiftPM 检出不再打包，日志包保持在几 MB。
 
 同时 Actions 运行页保留 `ZeroRed-build-<运行ID>-<尝试>` 构建产物（30 天）。
 

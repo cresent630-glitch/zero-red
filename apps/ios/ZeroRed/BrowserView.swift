@@ -63,11 +63,11 @@ struct BrowserView: View {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "square.on.square").font(.system(size: 17, weight: .medium)).frame(width: ZeroRedTheme.control, height: ZeroRedTheme.control)
                     Text("\(session.visibleTabs.count)")
-                        .font(.system(size: 10, weight: .bold)).monospacedDigit()
+                        .font(.system(size: 9, weight: .bold)).monospacedDigit()
                         .foregroundStyle(Color(uiColor: .systemBackground))
-                        .padding(.horizontal, 4).padding(.vertical, 1)
-                        .background(Color.primary, in: Capsule())
-                        .offset(x: -5, y: 6)
+                        .padding(.horizontal, 3.5).padding(.vertical, 0.5)
+                        .background(Color(uiColor: .label), in: Capsule())
+                        .offset(x: -4, y: 5)
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(library.text("页面管理", "Manage pages")).accessibilityIdentifier("tool.tabs")
             GlassDockButton(symbol: "books.vertical", label: library.text("资料库", "Library"), identifier: "tool.books.vertical") { libraryVisible = true }
