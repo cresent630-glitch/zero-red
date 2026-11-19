@@ -1,6 +1,6 @@
 # zero red 0.2 功能覆盖与验收状态
 
-本轮按浏览器评估表实现，排除跨设备同步。**2026-11-07 已在云 Mac 的 Xcode 27 / iOS 27 模拟器完成 Debug/Release 编译、8 项界面测试和静态分析。仍未完成真机和全部功能专项验收。**
+本轮按浏览器评估表实现，排除跨设备同步，并把界面改为 iOS 27 原生样式 + Liquid Glass（见 `docs/UI_DESIGN.md`）。**2026-11-19 起改由 GitHub Actions 的 `xcode-27` 运行器执行编译、核心测试与真机 IPA 打包；界面测试为可选步骤，截图随构建日志发布。仍未完成真机和全部功能专项验收。**
 
 | 评估项 | 原生 iOS 工程现状 | 网页预览现状 / 实际限制 |
 | --- | --- | --- |
@@ -16,7 +16,7 @@
 | 默认浏览器 | 系统设置入口、HTTP/HTTPS onOpenURL 路由，以及未启用的 entitlement 模板 | **未完成外部前置条件**：需要 Apple 对真实 App ID 授权和匹配签名。不能靠改代码或网页按钮获取资格 |
 | 视频 | 网页内联播放；AVPlayerLayer 播放器；统一显隐的播放/进度/缓存控制；倍速；内嵌与 SRT/VTT 字幕；AirPlay；PiP；匹配 Cookie 传递；MP4/MOV 后台下载；AVAssetDownloadURLSession HLS 离线任务 | 播放、统一控制显隐、倍速、字幕、缓存；PiP/投屏入口按宿主浏览器能力显示。受保护、MSE/blob、特殊鉴权视频无法承诺通用下载 |
 | 广告/追踪/弹窗 | WKContentRuleList 本地基础域名和广告选择器规则；额外域名；按站关闭；弹窗默认限制 | 网页预览不伪装成可过滤其他网站的浏览器。基础规则不是完整广告过滤订阅服务 |
-| 无障碍与稳定性 | 44pt 主要操作触控区；VoiceOver 标签；动态字体；减少动画；VoiceOver 时播放器不自动隐藏；错误状态、低存储预检；测试脚本与 CI 配置 | 基本键盘操作、可访问标签、减少动画。完整 VoiceOver、横屏、弱网、低内存与真实页面兼容性仍需设备验收 |
+| 无障碍与稳定性 | 44pt 主要操作触控区；VoiceOver 标签；动态字体；减少动画；VoiceOver 时播放器不自动隐藏；错误状态、低存储预检；iOS 27 Liquid Glass 原生外观（悬浮玻璃底栏、玻璃地址栏与工具栏，iOS 17–25 回退系统材质）；测试脚本与 CI 配置 | 基本键盘操作、可访问标签、减少动画。完整 VoiceOver、横屏、弱网、低内存与真实页面兼容性仍需设备验收 |
 | 跨设备同步 | 按要求不实现 | 不实现 |
 
 ## 不能省略的后续验收
@@ -31,5 +31,5 @@
 - Linux：54 项 Swift 核心测试通过，含旧 VideoDownloader 路径的真实 HTTP 测试；它们**不覆盖新的 Apple 后台下载代理、WKWebView、AVPlayer、PDFKit 和 SwiftUI 界面**。
 - 网页：73 项 Node 单元测试通过，含标签/隐私、PDF/DOCX 解析、IndexedDB 模拟迁移、播放器控制状态，以及下载字节/Range 恢复流程。IndexedDB 使用 fake-indexeddb；下载流程使用 Response/ReadableStream 受控响应。
 - App/UI Swift 源码语法检查、OpenStep 工程引用和 Info.plist 检查通过。
-- Xcode 27 构建、8 项 XCUITest、Release 静态分析：**已通过**。真机测试、实际网页浏览器点击回归仍未执行。
+- Xcode 27 构建与 Release 静态分析：**云端已通过**。界面测试为可选步骤，结论与导出的 `ui-screens` 截图以当次运行日志为准。真机测试、实际网页浏览器点击回归仍未执行。
 - `.github/workflows/ios-cloud-build.yml` 在 GitHub 托管 macOS 运行器上执行核心测试、模拟器 Release 与真机 IPA 打包；交付入口见 `docs/DEV_TO_DELIVERY.md`。

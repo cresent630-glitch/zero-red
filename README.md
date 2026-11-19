@@ -2,7 +2,7 @@
 
 极简黑白 iPhone 浏览器项目。包含原生 iOS 工程、可操作的网页预览、测试及功能文档。不包含跨设备同步。
 
-**当前状态：开发中的 0.2 版。已在 Xcode 27 / iOS 27 模拟器完成 Debug 编译和 15 项界面测试；真机验收仍待完成。**
+**当前状态：开发中的 0.2 版（构建 4）。界面已改为 iOS 27 原生样式 + Liquid Glass；云编译、54 项核心测试与模拟器 Release 通过，真机验收仍待完成。**
 
 ## 项目入口
 
@@ -14,6 +14,7 @@
 | 功能覆盖及待验收项 | `docs/FEATURE_MATRIX.md` |
 | 测试报告 | `docs/TEST_REPORT.md` |
 | 项目需求 | `docs/PRODUCT.md` |
+| 界面设计与 Liquid Glass 规范 | `docs/UI_DESIGN.md` |
 | 后续开发清单 | `docs/ROADMAP.md` |
 | 云编译与交付流程 | `docs/DEV_TO_DELIVERY.md` |
 | GitHub Actions 说明 | `docs/GITHUB_ACTIONS_BUILD.md` |

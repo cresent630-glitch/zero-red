@@ -45,15 +45,27 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
           python3 --version
 
-      - name: Prepare simulator
+      - name: Choose simulator
         if: ${{ inputs.run_ui_tests }}
         id: simulator
         run: |
           set -euo pipefail
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; a=[v["udid"] for k,vs in sorted(d.items(), reverse=True) if "iOS-27" in k for v in vs if v.get("isAvailable") and "iPhone" in v["name"]]; assert a, "No available iOS 27 iPhone simulator"; print(a[0])')
-          xcrun simctl boot "$device" || true
-          xcrun simctl bootstatus "$device" -b
+          # 只挑设备，不在这里启动：xcodebuild 会自己把目标模拟器启动好，
+          # 显式 simctl boot + bootstatus 在托管运行器上可能长时间不返回。
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/simulators.json"
+          device=$(python3 - "$RUNNER_TEMP/simulators.json" <<'PY'
+          import json, sys
+          devices = json.load(open(sys.argv[1]))["devices"]
+          choices = [(runtime, device) for runtime, items in devices.items() if "iOS" in runtime for device in items if device.get("isAvailable") and "iPhone" in device["name"]]
+          if not choices:
+              raise SystemExit("没有可用的 iPhone 模拟器")
+          choices.sort(key=lambda item: item[0], reverse=True)
+          print(choices[0][1]["udid"])
+          PY
+          )
           echo "id=$device" >> "$GITHUB_OUTPUT"
+          echo "使用模拟器 $device"
+          xcrun simctl list runtimes | tail -5
 
       - name: Run core tests
         if: ${{ inputs.run_unit_tests }}
