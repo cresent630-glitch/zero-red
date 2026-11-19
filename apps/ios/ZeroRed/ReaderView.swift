@@ -80,9 +80,7 @@ struct ReaderView: View {
                                 if let original = document.originalURL { Button(library.text("查看原文件", "Open original")) { preview = PreviewFile(url: original) } }
                             }
                             ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
-                                Text((try? AttributedString(markdown: paragraph, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(paragraph))
-                                    .font(.system(size: size * textScale, design: serif ? .serif : .default)).lineSpacing(spacing).textSelection(.enabled)
-                                    .padding(.bottom, size * 1.2).frame(maxWidth: .infinity, alignment: .leading)
+                                paragraphView(paragraph)
                                     .background(!query.isEmpty && paragraph.localizedStandardContains(query) ? Color.primary.opacity(0.12) : .clear).id(index)
                             }
                         }.padding(.horizontal, 26).padding(.vertical, 32).frame(maxWidth: 740)
@@ -151,6 +149,26 @@ struct ReaderView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(library.text(focus ? "退出专注" : "专注阅读", focus ? "Exit focus" : "Focus reading"))
+    }
+    /// 把 "# 标题" / "## 标题" 渲染成真正的标题，正文仍按行内 Markdown 处理。
+    private func headingLevel(_ text: String) -> Int {
+        let hashes = text.prefix { $0 == "#" }.count
+        guard (1...3).contains(hashes), text.dropFirst(hashes).hasPrefix(" ") else { return 0 }
+        return hashes
+    }
+    private func paragraphView(_ paragraph: String) -> some View {
+        let level = headingLevel(paragraph)
+        let body = level == 0
+            ? ((try? AttributedString(markdown: paragraph, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(paragraph))
+            : AttributedString(String(paragraph.dropFirst(level + 1)))
+        let scale: Double = level == 1 ? 1.42 : level == 2 ? 1.2 : level == 3 ? 1.06 : 1
+        return Text(body)
+            .font(.system(size: size * textScale * scale, weight: level > 0 ? .semibold : .regular, design: serif ? .serif : .default))
+            .lineSpacing(level > 0 ? spacing * 0.5 : spacing)
+            .textSelection(.enabled)
+            .padding(.top, level > 0 ? size * 0.6 : 0)
+            .padding(.bottom, level > 0 ? size * 0.6 : size * 1.2)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
     private func cache() { do { document = try reading.save(document) } catch { reading.error = error.localizedDescription } }
 }

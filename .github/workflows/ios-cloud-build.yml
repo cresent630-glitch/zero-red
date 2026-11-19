@@ -125,7 +125,9 @@ jobs:
           path: |
             build/ipa
             build/simulator-release.log
-            build/ui-tests
+            build/ui-tests/*.log
+            build/ui-tests/*.txt
+            build/ui-tests/*.xcresult
             build/ui-screens
           if-no-files-found: warn
           retention-days: 30
@@ -148,7 +150,13 @@ jobs:
           mkdir -p "$logs"
           cp build/ipa/*.log "$logs"/ 2>/dev/null || true
           cp build/simulator-release.log "$logs"/ 2>/dev/null || true
-          if [[ -d build/ui-tests ]]; then cp -R build/ui-tests/. "$logs"/ui-tests; fi
+          # 只收日志与 xcresult：DerivedData 会把日志包撑到几百 MB。
+          if [[ -d build/ui-tests ]]; then
+            mkdir -p "$logs/ui-tests"
+            for item in build/ui-tests/*.log build/ui-tests/*.txt build/ui-tests/*.xcresult; do
+              if [[ -e "$item" ]]; then cp -R "$item" "$logs/ui-tests"/; fi
+            done
+          fi
           if [[ -d build/ui-screens ]]; then cp -R build/ui-screens/. "$logs"/ui-screens; fi
           /usr/bin/ditto -c -k --keepParent "$logs" "$RUNNER_TEMP/ZeroRed-build-logs.zip"
           assets+=("$RUNNER_TEMP/ZeroRed-build-logs.zip")
