@@ -1,4 +1,6 @@
-# 云 Mac 调试
+# 云 Mac 调试（历史记录）
+
+> 当前默认路径是 GitHub Actions 云编译与交付，见 [DEV_TO_DELIVERY](DEV_TO_DELIVERY.md) 与 [GITHUB_ACTIONS_BUILD](GITHUB_ACTIONS_BUILD.md)。本文保留 2026-11-07 的云 Mac 连接方式，仅作历史记录；不再作为前置条件或默认回退。
 
 项目目录：`/Users/chuzu/zero-red-20261107`。
 

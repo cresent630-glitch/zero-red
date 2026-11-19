@@ -1,0 +1,141 @@
+name: iOS cloud build
+
+# zero red 云编译：在 GitHub 托管的 macOS 运行器上解析工程、跑核心测试、编译模拟器 Release、
+# 打包未签名真机 IPA，并把产物写入同一个仓库的 Release（标签 build-<运行ID>-<尝试>）。
+# 只手动触发：交付脚本按当前提交的完整 SHA 触发，保证交付的源码与构建一致。
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_unit_tests:
+        description: 运行 Swift 核心单元测试（离线，54 项）
+        type: boolean
+        default: true
+      run_ui_tests:
+        description: 运行 iOS 模拟器界面测试（托管运行器上媒体相关用例可能不稳定）
+        type: boolean
+        default: false
+      build_simulator_release:
+        description: 编译模拟器 Release 并做静态分析
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-cloud-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      ZERO_RED_TEST_CACHE: ${{ runner.temp }}/zero-red-test-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare tools
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          python3 --version
+
+      - name: Prepare simulator
+        if: ${{ inputs.run_ui_tests }}
+        id: simulator
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; a=[v["udid"] for k,vs in sorted(d.items(), reverse=True) if "iOS-27" in k for v in vs if v.get("isAvailable") and "iPhone" in v["name"]]; assert a, "No available iOS 27 iPhone simulator"; print(a[0])')
+          xcrun simctl boot "$device" || true
+          xcrun simctl bootstatus "$device" -b
+          echo "id=$device" >> "$GITHUB_OUTPUT"
+
+      - name: Run core tests
+        if: ${{ inputs.run_unit_tests }}
+        run: bash apps/ios/scripts/test-core.sh
+
+      - name: Run UI tests
+        if: ${{ inputs.run_ui_tests }}
+        env:
+          IOS_SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
+          ZERO_RED_IOS_RESULTS: ${{ github.workspace }}/build/ui-tests
+        run: bash apps/ios/scripts/test-ios.sh
+
+      - name: Build simulator Release
+        if: ${{ inputs.build_simulator_release }}
+        run: bash scripts/cloud-release.sh
+
+      - name: Build unsigned device IPA
+        id: ipa
+        run: bash scripts/package-ipa.sh
+
+      - name: Record source and toolchain
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          { printf 'commit=%s\nrun_id=%s\nrun_attempt=%s\n' "$SOURCE_SHA" "$RUN_ID" "$RUN_ATTEMPT"; xcodebuild -version; } > build/ipa/build-source.txt
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Upload build artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZeroRed-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/ipa
+            build/simulator-release.log
+            build/ui-tests
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish build release
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IPA_OUTCOME: ${{ steps.ipa.outcome }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          assets=()
+          if [[ "$IPA_OUTCOME" == success ]] && compgen -G 'build/ipa/*.ipa' >/dev/null; then
+            /usr/bin/ditto -c -k --keepParent build/ipa "$RUNNER_TEMP/ZeroRed-ipa.zip"
+            assets+=("$RUNNER_TEMP/ZeroRed-ipa.zip")
+          fi
+          logs="$RUNNER_TEMP/zero-red-logs"
+          mkdir -p "$logs"
+          cp build/ipa/*.log "$logs"/ 2>/dev/null || true
+          cp build/simulator-release.log "$logs"/ 2>/dev/null || true
+          if [[ -d build/ui-tests ]]; then cp -R build/ui-tests/. "$logs"/; fi
+          /usr/bin/ditto -c -k --keepParent "$logs" "$RUNNER_TEMP/ZeroRed-build-logs.zip"
+          assets+=("$RUNNER_TEMP/ZeroRed-build-logs.zip")
+          if [[ "$IPA_OUTCOME" == success ]]; then
+            notes="源码提交 $SOURCE_SHA。IPA 为未签名包，需要用 Sideloadly 在本机签名后安装。"
+          else
+            notes="源码提交 $SOURCE_SHA。真机 IPA 构建未成功，请查看运行日志与本 Release 中的构建日志。"
+          fi
+          publish() {
+            if ! gh release view "$tag" >/dev/null 2>&1; then
+              gh release create "$tag" --target "$SOURCE_SHA" --draft \
+                --title "zero red 云构建 ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --notes "$notes" || return 1
+            fi
+            gh release upload "$tag" "${assets[@]}" --clobber &&
+              gh release edit "$tag" --draft=false
+          }
+          for attempt in 1 2; do
+            if publish >"$RUNNER_TEMP/publish.log" 2>&1; then exit 0; fi
+            cat "$RUNNER_TEMP/publish.log"
+            if [[ "$attempt" == 1 ]]; then echo '发布产物失败，5 秒后重试一次。'; sleep 5; fi
+          done
+          echo '发布产物失败：检查仓库 Actions 的 contents: write 权限。'
+          exit 1

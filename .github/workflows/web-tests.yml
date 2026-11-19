@@ -1,0 +1,36 @@
+name: Web unit tests
+
+# 网页预览的单元测试与 iOS 云编译互相独立：网页回归失败不应让真机安装包停摆，
+# 也不需要用真机包去证明网页逻辑。公开仓库使用标准 Ubuntu 运行器，不消耗 macOS 分钟。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/web-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run web unit tests
+        run: npm test

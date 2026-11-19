@@ -17,3 +17,8 @@ apps/ios/TestResults/
 *.p12
 *.pfx
 *.mobileprovision
+
+# 云端构建下载、交付收据与本机安装包
+build/
+*.ipa
+sideloadlydaemon.log
