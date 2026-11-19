@@ -25,32 +25,47 @@ struct LibraryView: View {
     @State private var importing = false
     @State private var importingBackup = false
     @State private var confirmClear = false
-    private var labels: [String] { [library.text("书签", "Bookmarks"), library.text("历史", "History"), library.text("视频", "Videos"), library.text("阅读", "Reading"), library.text("下载", "Downloads"), library.text("设置", "Settings")] }
+    @State private var settingsVisible = false
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) { HStack { ForEach(labels.indices, id: \.self) { index in Button(labels[index]) { tab = index; query = "" }.font(.subheadline).padding(.horizontal, 14).padding(.vertical, 9).background(tab == index ? Color.primary.opacity(0.1) : .clear, in: Capsule()) } }.padding(.horizontal) }.padding(.bottom, 8)
-                switch tab { case 0: bookmarks; case 1: history; case 2: videos; case 3: documents; case 4: DownloadList(engine: engine); default: SettingsView(session: session) }
-            }.navigationTitle("zero red").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(library.text("完成", "Done")) { dismiss() } } }
+            // 原生分页：iOS 26 起底部标签栏本身就是 Liquid Glass，
+            // 不再手绘横向胶囊切片，交互与系统「文件 / 音乐」等应用一致。
+            TabView(selection: $tab) {
+                bookmarks.tabItem { Label(library.text("书签", "Bookmarks"), systemImage: "bookmark") }.tag(0)
+                history.tabItem { Label(library.text("历史", "History"), systemImage: "clock") }.tag(1)
+                videos.tabItem { Label(library.text("视频", "Videos"), systemImage: "film") }.tag(2)
+                documents.tabItem { Label(library.text("阅读", "Reading"), systemImage: "text.book.closed") }.tag(3)
+                DownloadList(engine: engine).tabItem { Label(library.text("下载", "Downloads"), systemImage: "arrow.down.circle") }.tag(4)
+            }
+            .searchable(text: $query, prompt: library.text("搜索资料库", "Search library"))
+            .onChange(of: tab) { _, _ in query = "" }
+            .navigationTitle("zero red")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { GlassToolbarButton(symbol: "gearshape", label: library.text("设置", "Settings")) { settingsVisible = true } }
+                ToolbarItem(placement: .confirmationAction) { GlassProminentButton(title: library.text("完成", "Done")) { dismiss() } }
+            }
             .task { detected = await engine.videoLinks() }
             .fullScreenCover(item: $selectedDocument) { ReaderView(document: $0) }
             .sheet(item: $editingDocument) { document in DocumentEditor(document: document) }
             .sheet(item: $preview) { FilePreview(url: $0.url) }
             .sheet(item: $shared) { ShareSheet(items: $0.items) }
+            .sheet(isPresented: $settingsVisible) { LibrarySettings(session: session) }
             .fullScreenCover(item: $player) { NativePlayer(item: $0) }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText, .text, .html, .pdf, UTType(filenameExtension: "docx") ?? .data], allowsMultipleSelection: false) { result in do { if let url = try result.get().first { selectedDocument = try reading.importFile(url) } } catch { reading.error = error.localizedDescription } }
             .fileImporter(isPresented: $importingBackup, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in do { if let url = try result.get().first { try reading.restoreBackup(url) } } catch { reading.error = error.localizedDescription } }
             .alert(library.text("提示", "Notice"), isPresented: Binding(get: { library.downloadError != nil || reading.error != nil || downloads.error != nil }, set: { if !$0 { library.downloadError = nil; reading.error = nil; downloads.error = nil } })) { Button(library.text("好", "OK")) { library.downloadError = nil; reading.error = nil; downloads.error = nil } } message: { Text(library.downloadError ?? reading.error ?? downloads.error ?? "") }
             .confirmationDialog(library.text("清空所有历史记录？", "Clear all history?"), isPresented: $confirmClear, titleVisibility: .visible) { Button(library.text("清空", "Clear"), role: .destructive) { library.history.removeAll() } }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
     private var bookmarks: some View {
         List {
             if let url = engine.url, engine.active { Button(library.text("收藏当前网页", "Bookmark this page"), systemImage: "bookmark") { library.bookmark(url, title: engine.title) } }
             ForEach(library.bookmarks.filter { query.isEmpty || $0.title.localizedStandardContains(query) || $0.url.absoluteString.localizedStandardContains(query) }) { page($0) }
                 .onDelete { indices in let visible = library.bookmarks.filter { query.isEmpty || $0.title.localizedStandardContains(query) || $0.url.absoluteString.localizedStandardContains(query) }; let ids = indices.map { visible[$0].id }; library.bookmarks.removeAll { ids.contains($0.id) } }
-        }.searchable(text: $query, prompt: library.text("搜索书签", "Search bookmarks"))
+        }
     }
     private var history: some View {
         List {
@@ -58,7 +73,7 @@ struct LibraryView: View {
             ForEach(library.history.filter { query.isEmpty || $0.title.localizedStandardContains(query) || $0.url.absoluteString.localizedStandardContains(query) }) { page($0) }
                 .onDelete { indices in let visible = library.history.filter { query.isEmpty || $0.title.localizedStandardContains(query) || $0.url.absoluteString.localizedStandardContains(query) }; let ids = indices.map { visible[$0].id }; library.history.removeAll { ids.contains($0.id) } }
             if !library.history.isEmpty { Button(library.text("清空历史记录", "Clear history"), role: .destructive) { confirmClear = true } }
-        }.searchable(text: $query, prompt: library.text("搜索历史", "Search history"))
+        }
     }
     private var videos: some View {
         List {
@@ -100,7 +115,7 @@ struct LibraryView: View {
                     .contextMenu { Button(library.text("修改标题 / 标签", "Edit title / tag")) { editingDocument = document }; Button(library.text("导出文本", "Export text")) { do { shared = SharedItems(items: [try reading.exportText(document)]) } catch { reading.error = error.localizedDescription } }; if let url = document.originalURL { Button(library.text("原文件", "Original file")) { preview = PreviewFile(url: url) } }; Button(library.text("删除", "Delete"), role: .destructive) { reading.delete(document) } }
             }
             Section { Button(library.text("导出阅读备份", "Export reading backup")) { do { shared = SharedItems(items: [try reading.exportBackup()]) } catch { reading.error = error.localizedDescription } }; Button(library.text("导入阅读备份", "Import reading backup")) { importingBackup = true } }
-        }.searchable(text: $query, prompt: library.text("搜索标题、正文、标签", "Search title, full text, tags"))
+        }
     }
     private func page(_ entry: PageEntry) -> some View { Button { open(entry.url) } label: { VStack(alignment: .leading, spacing: 4) { Text(entry.title).foregroundStyle(.primary).lineLimit(1); Text(entry.url.absoluteString).font(.caption).foregroundStyle(.secondary).lineLimit(1) } }.accessibilityIdentifier("page." + entry.url.absoluteString).contextMenu { ShareLink(item: entry.url); Button(library.text("复制链接", "Copy link")) { UIPasteboard.general.url = entry.url } } }
     private func parsedVideo() -> URL? { let url = AddressResolver.webURL(videoURL.trimmingCharacters(in: .whitespacesAndNewlines)); if url == nil { library.downloadError = library.text("请输入有效的视频网址。", "Enter a valid video URL.") }; return url }
@@ -113,12 +128,28 @@ struct LibraryView: View {
     }
 }
 @MainActor
+private struct LibrarySettings: View {
+    @EnvironmentObject private var library: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var session: BrowserSession
+    var body: some View {
+        NavigationStack {
+            SettingsView(session: session)
+                .navigationTitle(library.text("设置", "Settings"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { GlassProminentButton(title: library.text("完成", "Done")) { dismiss() } } }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+}
+@MainActor
 private struct DocumentEditor: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var reading: ReadingLibrary
     @Environment(\.dismiss) private var dismiss
     @State var document: ReadingDocument
-    var body: some View { NavigationStack { Form { TextField(library.text("标题", "Title"), text: $document.title); TextField(library.text("标签 / 分类", "Tag / category"), text: $document.tag) }.navigationTitle(library.text("编辑", "Edit")).toolbar { Button(library.text("保存", "Save")) { reading.update(document); dismiss() } } } }
+    var body: some View { NavigationStack { Form { TextField(library.text("标题", "Title"), text: $document.title); TextField(library.text("标签 / 分类", "Tag / category"), text: $document.tag) }.navigationTitle(library.text("编辑", "Edit")).toolbar { ToolbarItem(placement: .confirmationAction) { GlassProminentButton(title: library.text("保存", "Save")) { reading.update(document); dismiss() } } } } }
 }
 @MainActor
 struct DownloadList: View {

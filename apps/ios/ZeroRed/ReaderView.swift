@@ -56,28 +56,20 @@ struct ReaderView: View {
     private var contents: [(Int, String)] { paragraphs.enumerated().filter { $0.element.hasPrefix("#") }.map { ($0.offset, $0.element.replacingOccurrences(of: "^#+\\s*", with: "", options: .regularExpression)) } }
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                if !focus { icon("chevron.left", library.text("返回", "Back")) { dismiss() }.accessibilityIdentifier("readerBack") }
-                Spacer()
-                icon(saved ? "checkmark" : "arrow.down.to.line", library.text(saved ? "已缓存" : "缓存当前文本", saved ? "Saved" : "Save current text")) { cache() }.disabled(saved)
-                if !focus {
-                    Menu {
-                        Button(library.text("字号增加", "Larger text")) { size = min(32, size + 2) }
-                        Button(library.text("字号减小", "Smaller text")) { size = max(14, size - 2) }
-                        Toggle(library.text("衬线字体", "Serif font"), isOn: $serif)
-                        Toggle(library.text("深色阅读", "Dark reading"), isOn: $dark)
-                        Picker(library.text("行距", "Spacing"), selection: $spacing) { Text(library.text("紧凑", "Compact")).tag(4.0); Text(library.text("适中", "Comfortable")).tag(10.0); Text(library.text("宽松", "Spacious")).tag(18.0) }
-                        Button(library.text("页内查找", "Find in text")) { showFind.toggle() }
-                        Button(library.text("目录", "Contents")) { showContents = true }.disabled(contents.isEmpty)
-                        Button(library.text("翻译正文", "Translate text")) { translation = true }
-                        Button(library.text("复制全文", "Copy all text")) { UIPasteboard.general.string = document.text }
-                        Button(library.text("导出文本", "Export text")) { do { shared = SharedItems(items: [try reading.exportText(document)]) } catch { reading.error = error.localizedDescription } }
-                        if let original = document.originalURL { Button(library.text("查看原文件", "View original")) { preview = PreviewFile(url: original) } }
-                    } label: { Text("Aa").frame(width: 44, height: 44) }.accessibilityLabel(library.text("阅读设置", "Reading settings"))
+            if focus {
+                HStack { Spacer(); focusButton.zeroRedGlass(Circle(), interactive: true) }.padding(.horizontal, 14).padding(.top, 8)
+            } else {
+                topBar.padding(.horizontal, 14).padding(.top, 6).padding(.bottom, 4)
+            }
+            if showFind && !focus {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").font(.footnote).foregroundStyle(.secondary)
+                    TextField(library.text("查找文字", "Find text"), text: $query).textInputAutocapitalization(.never).submitLabel(.search)
                 }
-                icon(focus ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", library.text(focus ? "退出专注" : "专注阅读", focus ? "Exit focus" : "Focus reading")) { focus.toggle() }
-            }.padding(.horizontal, 12)
-            if showFind && !focus { TextField(library.text("查找文字", "Find text"), text: $query).textFieldStyle(.roundedBorder).padding(.horizontal) }
+                .padding(.horizontal, 14).frame(minHeight: 44)
+                .zeroRedGlass(Capsule(), interactive: true)
+                .padding(.horizontal, 14).padding(.bottom, 6)
+            }
             GeometryReader { viewportGeometry in
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -107,7 +99,13 @@ struct ReaderView: View {
                     .sheet(isPresented: $showContents) { NavigationStack { List(contents, id: \.0) { index, title in Button(title) { showContents = false; proxy.scrollTo(index, anchor: .top) } }.navigationTitle(library.text("目录", "Contents")) } }
                 }
             }
-            if !focus { Text("\(Int(document.progress * 100))%").font(.caption2.monospacedDigit()).foregroundStyle(.secondary).padding(.bottom, 8) }
+            if !focus {
+                Text("\(Int(document.progress * 100))%")
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .zeroRedGlass(Capsule())
+                    .padding(.bottom, 8)
+            }
         }
         .background(dark ? Color(white: 0.07) : .white).foregroundStyle(dark ? .white : Color(white: 0.12)).preferredColorScheme(dark ? .dark : .light)
         .onDisappear { pending?.cancel(); if saved { reading.update(document) } }
@@ -116,8 +114,45 @@ struct ReaderView: View {
         .alert(library.text("提示", "Notice"), isPresented: Binding(get: { reading.error != nil }, set: { if !$0 { reading.error = nil } })) { Button(library.text("好", "OK")) { reading.error = nil } } message: { Text(reading.error ?? "") }
         .modifier(SystemTranslation(presented: $translation, text: document.text))
     }
+    /// 悬浮玻璃阅读工具栏：返回 / 缓存 / 排版菜单 / 专注阅读。
+    private var topBar: some View {
+        HStack(spacing: 2) {
+            Button { dismiss() } label: { Image(systemName: "chevron.backward").frame(width: 42, height: 42).contentShape(Rectangle()) }
+                .buttonStyle(.plain).accessibilityLabel(library.text("返回", "Back")).accessibilityIdentifier("readerBack")
+            Spacer(minLength: 0)
+            Button(action: cache) { Image(systemName: saved ? "checkmark" : "arrow.down.to.line").frame(width: 42, height: 42).contentShape(Rectangle()) }
+                .buttonStyle(.plain).disabled(saved)
+                .accessibilityLabel(library.text(saved ? "已缓存" : "缓存当前文本", saved ? "Saved" : "Save current text"))
+            Menu {
+                Button(library.text("字号增加", "Larger text")) { size = min(32, size + 2) }
+                Button(library.text("字号减小", "Smaller text")) { size = max(14, size - 2) }
+                Toggle(library.text("衬线字体", "Serif font"), isOn: $serif)
+                Toggle(library.text("深色阅读", "Dark reading"), isOn: $dark)
+                Picker(library.text("行距", "Spacing"), selection: $spacing) { Text(library.text("紧凑", "Compact")).tag(4.0); Text(library.text("适中", "Comfortable")).tag(10.0); Text(library.text("宽松", "Spacious")).tag(18.0) }
+                Button(library.text("页内查找", "Find in text")) { showFind.toggle() }
+                Button(library.text("目录", "Contents")) { showContents = true }.disabled(contents.isEmpty)
+                Button(library.text("翻译正文", "Translate text")) { translation = true }
+                Button(library.text("复制全文", "Copy all text")) { UIPasteboard.general.string = document.text }
+                Button(library.text("导出文本", "Export text")) { do { shared = SharedItems(items: [try reading.exportText(document)]) } catch { reading.error = error.localizedDescription } }
+                if let original = document.originalURL { Button(library.text("查看原文件", "View original")) { preview = PreviewFile(url: original) } }
+            } label: { Text("Aa").font(.system(size: 15, weight: .semibold)).frame(width: 42, height: 42).contentShape(Rectangle()) }
+            .accessibilityLabel(library.text("阅读设置", "Reading settings"))
+            focusButton
+        }
+        .font(.system(size: 16, weight: .medium))
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .zeroRedGlass(Capsule(), interactive: true)
+    }
+    private var focusButton: some View {
+        Button { focus.toggle() } label: {
+            Image(systemName: focus ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .frame(width: 42, height: 42).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(library.text(focus ? "退出专注" : "专注阅读", focus ? "Exit focus" : "Focus reading"))
+    }
     private func cache() { do { document = try reading.save(document) } catch { reading.error = error.localizedDescription } }
-    private func icon(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View { Button(action: action) { Image(systemName: symbol).frame(width: 44, height: 44) }.accessibilityLabel(label) }
 }
 struct SystemTranslation: ViewModifier {
     @Binding var presented: Bool

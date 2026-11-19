@@ -187,6 +187,42 @@ final class ZeroRedUITests: XCTestCase {
         app.alerts.buttons["OK"].tap()
         XCTAssertFalse(app.buttons["fake.mp4"].exists)
     }
+    /// 视觉验收用：依次走首页、网页、页面总览、资料库、阅读与设置，各留一张截图。
+    /// 工作流把附件导出成 PNG，供人工核对 iOS 27 Liquid Glass 外观。
+    private func capture(_ name: String) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = name
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+    func testDesignScreenshots() {
+        capture("01-home")
+        navigateToFixture()
+        capture("02-browser")
+        app.buttons["Manage pages"].tap()
+        XCTAssertTrue(app.buttons["Close page"].firstMatch.waitForExistence(timeout: 5))
+        capture("03-pages")
+        app.buttons["New"].tap()
+        let input = app.textFields["addressInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("http://localhost:8765/reader-complete.html\n")
+        XCTAssertTrue(app.webViews.staticTexts["First article"].firstMatch.waitForExistence(timeout: 15))
+        library()
+        capture("04-library-bookmarks")
+        app.buttons["History"].tap()
+        capture("05-library-history")
+        app.buttons["Done"].tap()
+        app.buttons["pageActions"].tap()
+        app.buttons["Reader / translate text"].tap()
+        XCTAssertTrue(app.buttons["Save current text"].waitForExistence(timeout: 10))
+        capture("06-reader")
+        app.buttons["readerBack"].tap()
+        XCTAssertTrue(app.buttons["pageActions"].waitForExistence(timeout: 5))
+        library()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        capture("07-settings")
+    }
 }
 
 @MainActor

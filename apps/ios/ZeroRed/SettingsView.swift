@@ -89,8 +89,10 @@ struct SiteSettings: View {
                 Button(library.text("清除本站数据", "Clear this site's data"), role: .destructive) {
                     Task { let types = WKWebsiteDataStore.allWebsiteDataTypes(); let store = engine.webView.configuration.websiteDataStore; let records = await store.dataRecords(ofTypes: types); let matching = records.filter { host == $0.displayName || host.hasSuffix("." + $0.displayName) }; await store.removeData(ofTypes: types, for: matching); engine.webView.reload() }
                 }
-            }.navigationTitle(library.text("网站设置", "Website settings")).toolbar { Button(library.text("完成", "Done")) { dismiss() } }
+            }.navigationTitle(library.text("网站设置", "Website settings")).toolbar { ToolbarItem(placement: .confirmationAction) { GlassProminentButton(title: library.text("完成", "Done")) { dismiss() } } }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
     private func permission(_ title: String, selection: Binding<PermissionChoice>) -> some View { Picker(title, selection: selection) { Text(library.text("每次询问", "Ask")).tag(PermissionChoice.ask); Text(library.text("允许", "Allow")).tag(PermissionChoice.allow); Text(library.text("拒绝", "Deny")).tag(PermissionChoice.deny) } }
 }
@@ -103,7 +105,7 @@ struct WebsiteDataView: View {
         NavigationStack {
             List {
                 ForEach(records, id: \.displayName) { record in HStack { Text(record.displayName); Spacer(); Button { Task { await WKWebsiteDataStore.default().removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), for: [record]); await reload() } } label: { Image(systemName: "trash").frame(width: 44, height: 44) }.accessibilityLabel(library.text("删除网站数据", "Delete site data")) } }
-            }.navigationTitle(library.text("网站数据", "Website data")).toolbar { Button(library.text("完成", "Done")) { dismiss() } }.task { await reload() }
+            }.navigationTitle(library.text("网站数据", "Website data")).toolbar { ToolbarItem(placement: .confirmationAction) { GlassProminentButton(title: library.text("完成", "Done")) { dismiss() } } }.task { await reload() }
         }
     }
     private func reload() async { records = await WKWebsiteDataStore.default().dataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) }

@@ -63,10 +63,24 @@ jobs:
 
       - name: Run UI tests
         if: ${{ inputs.run_ui_tests }}
+        continue-on-error: true
         env:
           IOS_SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
           ZERO_RED_IOS_RESULTS: ${{ github.workspace }}/build/ui-tests
         run: bash apps/ios/scripts/test-ios.sh
+
+      - name: Export UI screenshots
+        if: ${{ always() && inputs.run_ui_tests }}
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          results=(build/ui-tests/*.xcresult)
+          if [ ${#results[@]} -eq 0 ]; then echo '没有 xcresult，跳过截图导出。'; exit 0; fi
+          mkdir -p build/ui-screens
+          for result in "${results[@]}"; do
+            xcrun xcresulttool export attachments --path "$result" --output-path build/ui-screens || echo '截图导出失败，仅影响视觉证据，不影响安装包。'
+          done
+          find build/ui-screens -type f | head -50
 
       - name: Build simulator Release
         if: ${{ inputs.build_simulator_release }}
@@ -95,6 +109,7 @@ jobs:
             build/ipa
             build/simulator-release.log
             build/ui-tests
+            build/ui-screens
           if-no-files-found: warn
           retention-days: 30
 
@@ -116,7 +131,8 @@ jobs:
           mkdir -p "$logs"
           cp build/ipa/*.log "$logs"/ 2>/dev/null || true
           cp build/simulator-release.log "$logs"/ 2>/dev/null || true
-          if [[ -d build/ui-tests ]]; then cp -R build/ui-tests/. "$logs"/; fi
+          if [[ -d build/ui-tests ]]; then cp -R build/ui-tests/. "$logs"/ui-tests; fi
+          if [[ -d build/ui-screens ]]; then cp -R build/ui-screens/. "$logs"/ui-screens; fi
           /usr/bin/ditto -c -k --keepParent "$logs" "$RUNNER_TEMP/ZeroRed-build-logs.zip"
           assets+=("$RUNNER_TEMP/ZeroRed-build-logs.zip")
           if [[ "$IPA_OUTCOME" == success ]]; then

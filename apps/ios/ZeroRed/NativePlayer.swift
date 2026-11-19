@@ -122,12 +122,20 @@ struct NativePlayer: View {
             PlayerSurface(model: model).ignoresSafeArea().contentShape(Rectangle()).onTapGesture { model.toggle() }
             if !model.cueText.isEmpty { VStack { Spacer(); Text(model.cueText).foregroundStyle(.white).padding(8).background(.black.opacity(0.6)).padding(.bottom, model.controlsVisible ? 115 : 45) }.allowsHitTesting(false) }
             if model.controlsVisible {
-                VStack {
-                    HStack { button("xmark", library.text("关闭", "Close")) { dismiss() }; Spacer(); Text(item.title).font(.caption).lineLimit(1); Spacer(); if model.pictureInPicturePossible { button("pip.enter", library.text("画中画", "Picture in Picture")) { model.pip?.startPictureInPicture(); model.reveal() } } }
-                    Spacer().frame(maxWidth: .infinity).contentShape(Rectangle()).onTapGesture { model.toggle() }
-                    VStack(spacing: 4) {
-                        Slider(value: Binding(get: { min(model.position, max(model.duration, 1)) }, set: { value in model.player.seek(to: CMTime(seconds: value, preferredTimescale: 600)); model.reveal() }), in: 0...max(model.duration, 1), onEditingChanged: { editing in model.interacting = editing; model.reveal() }).disabled(model.duration <= 0).tint(.white).accessibilityLabel(library.text("播放进度", "Playback position"))
-                        HStack {
+                VStack(spacing: 10) {
+                    HStack(spacing: 6) {
+                        button("xmark", library.text("关闭", "Close")) { dismiss() }
+                        Spacer(minLength: 2)
+                        Text(item.title).font(.caption.weight(.medium)).lineLimit(1)
+                        Spacer(minLength: 2)
+                        if model.pictureInPicturePossible { button("pip.enter", library.text("画中画", "Picture in Picture")) { model.pip?.startPictureInPicture(); model.reveal() } }
+                    }
+                    .padding(.horizontal, 4).frame(minHeight: 50)
+                    .zeroRedGlass(Capsule(), interactive: true)
+                    Spacer(minLength: 0).frame(maxWidth: .infinity).contentShape(Rectangle()).onTapGesture { model.toggle() }
+                    VStack(spacing: 6) {
+                        Slider(value: Binding(get: { min(model.position, max(model.duration, 1)) }, set: { value in model.player.seek(to: CMTime(seconds: value, preferredTimescale: 600)); model.reveal() }), in: 0...max(model.duration, 1), onEditingChanged: { editing in model.interacting = editing; model.reveal() }).disabled(model.duration <= 0).accessibilityLabel(library.text("播放进度", "Playback position"))
+                        HStack(spacing: 2) {
                             button(model.playing ? "pause.fill" : "play.fill", library.text("播放或暂停", "Play or pause")) { model.toggle() }.accessibilityValue(model.playing ? "Playing" : "Paused")
                             Text(time(model.position) + " / " + time(model.duration)).font(.caption.monospacedDigit())
                             Spacer()
@@ -141,7 +149,11 @@ struct NativePlayer: View {
                             }.disabled(cached || caching)
                         }
                     }
-                }.padding().foregroundStyle(.white).background(LinearGradient(colors: [.black.opacity(0.65), .clear, .clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .zeroRedGlass(RoundedRectangle(cornerRadius: ZeroRedTheme.contentRadius, style: .continuous), interactive: true)
+                }
+                .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 16)
+                .foregroundStyle(.primary)
                 .transition(.opacity)
             }
         }
