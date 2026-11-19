@@ -161,7 +161,7 @@ try {
     Add-Result 'app-identity' 'PASS' "$bundle，版本 $version（构建 $build），最低 iOS $minos。"
 } catch { Add-Result 'app-identity' 'FAIL' $_.Exception.Message }
 
-$results | Format-Table -AutoSize -Wrap
+$results | Format-Table -AutoSize -Wrap | Out-String -Width 200 | Write-Output
 $fail = @($results | Where-Object { $_.Status -eq 'FAIL' }).Count
 $skip = @($results | Where-Object { $_.Status -eq 'SKIP' }).Count
 $warn = @($results | Where-Object { $_.Status -eq 'WARN' }).Count

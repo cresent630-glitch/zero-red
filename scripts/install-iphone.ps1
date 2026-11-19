@@ -12,7 +12,7 @@ try {
     }
     $ipa = Join-Path $directory $metadata.fileName
     $validation = & "$PSScriptRoot/Test-DeviceIpa.ps1" -IpaPath $ipa -MetadataPath $manifestPath
-    if ($ValidateOnly) { $validation; return }
+    if ($ValidateOnly) { Write-Output ($validation | Out-String -Width 200).Trim(); return }
     $candidates = @(
         (Join-Path $env:ProgramFiles 'Sideloadly/sideloadly.exe'),
         (Join-Path ${env:ProgramFiles(x86)} 'Sideloadly/sideloadly.exe'),

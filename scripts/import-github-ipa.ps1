@@ -18,7 +18,7 @@ if ($metadata.fileName -notmatch '^ZeroRed-[0-9.]+-[0-9]+-[0-9]{8}T[0-9]{6}Z-uns
     throw '构建信息中的文件名无效。'
 }
 $ipa = Join-Path $source $metadata.fileName
-& "$PSScriptRoot/Test-DeviceIpa.ps1" -IpaPath $ipa -MetadataPath $manifest
+$firstCheck = & "$PSScriptRoot/Test-DeviceIpa.ps1" -IpaPath $ipa -MetadataPath $manifest
 if (-not $?) { throw '安装包校验失败，未更新默认安装包。' }
 $directory = Join-Path $root 'build/ios-device'
 New-Item -ItemType Directory -Path $directory -Force | Out-Null
@@ -30,10 +30,11 @@ if (Test-Path -LiteralPath $destination) {
 } else {
     Copy-Item -LiteralPath $ipa -Destination $destination
 }
-& "$PSScriptRoot/Test-DeviceIpa.ps1" -IpaPath $destination -MetadataPath $manifest
+& "$PSScriptRoot/Test-DeviceIpa.ps1" -IpaPath $destination -MetadataPath $manifest | Out-Null
 if (-not $?) { throw '复制后的安装包校验失败，未更新默认安装包。' }
 Copy-Item -LiteralPath $manifest -Destination "$destination.json" -Force
 $temporary = Join-Path $directory ('.latest-' + [guid]::NewGuid().ToString('N') + '.json')
 Copy-Item -LiteralPath $manifest -Destination $temporary
 Move-Item -LiteralPath $temporary -Destination (Join-Path $directory 'latest.json') -Force
 Write-Output "已导入并校验：$destination"
+Write-Output "版本 $($metadata.version)（构建 $($metadata.build)）；$($metadata.architecture) / $($metadata.platform) / iOS $($metadata.minimumOSVersion) 及以上；SHA256 $($metadata.sha256)"
