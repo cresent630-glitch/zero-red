@@ -15,9 +15,15 @@ final class ZeroRedUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
     }
     private func navigateToFixture() {
+        // 托管运行器上首次加载本地 fixture 偶尔超过 15 秒：先给足时间，
+        // 失败后回首页清空地址再重试一次，避免把网络抖动记成产品缺陷。
         let input = app.textFields["addressInput"]
         input.tap(); input.typeText("http://localhost:8765/\n")
-        XCTAssertTrue(app.webViews.staticTexts["Zero Red Test Page"].firstMatch.waitForExistence(timeout: 15))
+        if app.webViews.staticTexts["Zero Red Test Page"].firstMatch.waitForExistence(timeout: 25) { return }
+        app.buttons["tool.house"].tap()
+        let retry = app.textFields["addressInput"]
+        retry.tap(); retry.typeText("http://localhost:8765/\n")
+        XCTAssertTrue(app.webViews.staticTexts["Zero Red Test Page"].firstMatch.waitForExistence(timeout: 25))
     }
     func testEnglishMinimalHome() {
         XCTAssertEqual(app.textFields.count, 1)

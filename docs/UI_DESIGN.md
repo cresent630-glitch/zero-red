@@ -16,7 +16,7 @@
 | 起始页 | 字标 `zero red` + 副标题 + 地址胶囊 + 最近访问胶囊 | 地址框 `.glassEffect(.regular.interactive(), in: .capsule)`；快捷胶囊同款 |
 | 浏览页 | 顶部地址胶囊、细线进度、网页全屏；底部悬浮操作栏 | 底栏 `GlassEffectContainer` + 交互玻璃胶囊 |
 | 页面总览 | 2 列卡片网格、无痕开关卡、最近关闭列表 | 卡片圆角 20、关闭按钮圆形玻璃、工具栏玻璃按钮 |
-| 资料库 | 原生 `TabView`：书签 / 历史 / 视频 / 阅读 / 下载；设置移入工具栏齿轮 | 系统玻璃标签栏；`Done` 用 `.glassProminent` |
+| 资料库 | 原生 `List`/`Form` + 横向分页胶囊；设置作为最后一个分页 | 选中分页一枚 `.glassEffect(.regular.interactive())` 胶囊，`Done` 用 `.glassProminent` |
 | 阅读 | 悬浮玻璃工具栏（返回 / 缓存 / Aa / 专注）+ 正文 + 底部进度胶囊；`#`/`##`/`###` 段落渲染为标题层级 | 顶部胶囊 + `.regular` 玻璃；专注模式只留一枚圆形玻璃专注按钮 |
 | 播放器 | 顶部信息胶囊（关闭 / 标题 / 画中画）+ 传输控制胶囊（进度、播放、倍速、字幕、AirPlay、缓存） | 两枚悬浮胶囊，`.regular` 玻璃随系统深浅色自适应 |
 | 网站设置 / 网站数据 / 文本编辑 | 原生 `Form` / `List` + 玻璃确认按钮 | `.glassProminent`，`[.large]` 弹出尺寸 |
@@ -29,10 +29,12 @@
 | 玻璃分组 | `GlassEffectContainer(spacing:)` | `zeroRedGlassGroup(spacing:)`、`GlassDock` | 直接返回内容 |
 | 工具栏图标按钮 | `.buttonStyle(.glass)` | `GlassToolbarButton` | 普通按钮 |
 | 主操作按钮 | `.buttonStyle(.glassProminent)` | `GlassProminentButton` | `.borderedProminent` |
-| 资料库分页 | `TabView` + `.tabItem` | `LibraryView` | 系统标签栏 |
+| 资料库分页 | `.glassEffect(.regular.interactive(), in: .capsule)` | `ZeroRedChip` | 材质胶囊 |
 | 禁用/可用态 | 系统 `.disabled` | 底栏前进后退 | 相同 |
 
 玻璃只出现在四类位置：悬浮底栏、地址/查找胶囊、工具栏按钮、卡片内的小圆形按钮。正文与列表行不加玻璃，避免层次过载。
+
+> 资料库曾试过改成原生 `TabView`（系统玻璃标签栏），但 `TabView` + `.searchable` 放在 sheet 里会让 App 一直不进入 idle，XCUITest 在打开资料库时挂起 15 分钟，因此保留分页胶囊方案；只有选中态换成原生玻璃。
 
 ## 尺寸与排版
 
