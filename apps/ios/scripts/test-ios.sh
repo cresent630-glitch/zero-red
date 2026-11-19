@@ -31,5 +31,11 @@ else: raise SystemExit("Fixture server did not become ready")
 PY
 xcodebuild -version > "$TASK_RESULTS/xcode-version.txt"
 xcrun simctl list runtimes > "$TASK_RESULTS/simulator-runtimes.txt"
-xcodebuild -project "$TASK_ROOT/ZeroRed.xcodeproj" -scheme ZeroRed -configuration Debug -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_ID" -derivedDataPath "$TASK_RESULTS/DerivedData" -resultBundlePath "$TASK_RESULTS/UITests.xcresult" CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$TASK_RESULTS/xcodebuild.log"
+# ONLY_TESTING 只跑指定用例（空格分隔的用例名），用于云端单独取视觉验收截图；
+# 默认跑完整 ZeroRedUITests。
+ONLY_FLAGS=""
+if [[ -n "${ONLY_TESTING:-}" ]]; then
+  for name in $ONLY_TESTING; do ONLY_FLAGS="$ONLY_FLAGS -only-testing:ZeroRedUITests/ZeroRedUITests/$name"; done
+fi
+xcodebuild -project "$TASK_ROOT/ZeroRed.xcodeproj" -scheme ZeroRed -configuration Debug -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_ID" -derivedDataPath "$TASK_RESULTS/DerivedData" -resultBundlePath "$TASK_RESULTS/UITests.xcresult" CODE_SIGNING_ALLOWED=NO test $ONLY_FLAGS 2>&1 | tee "$TASK_RESULTS/xcodebuild.log"
 xcodebuild -project "$TASK_ROOT/ZeroRed.xcodeproj" -scheme ZeroRed -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath "$TASK_RESULTS/ReleaseDerivedData" CODE_SIGNING_ALLOWED=NO build analyze 2>&1 | tee "$TASK_RESULTS/release-analyze.log"

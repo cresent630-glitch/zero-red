@@ -15,6 +15,10 @@ on:
         description: 运行 iOS 模拟器界面测试（托管运行器上媒体相关用例可能不稳定）
         type: boolean
         default: false
+      ui_test_only:
+        description: 只跑界面测试里的指定用例（空格分隔，例如 testDesignScreenshots）
+        type: string
+        default: ''
       build_simulator_release:
         description: 编译模拟器 Release 并做静态分析
         type: boolean
@@ -79,6 +83,7 @@ jobs:
         env:
           IOS_SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
           ZERO_RED_IOS_RESULTS: ${{ github.workspace }}/build/ui-tests
+          ONLY_TESTING: ${{ inputs.ui_test_only }}
         run: bash apps/ios/scripts/test-ios.sh
 
       - name: Export UI screenshots

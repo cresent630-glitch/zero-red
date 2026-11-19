@@ -120,6 +120,30 @@ struct GlassProminentButton: View {
     }
 }
 
+/// 资料库分页胶囊：选中态给一枚原生玻璃胶囊，未选中保持纯文本。
+struct ZeroRedChip: View {
+    var title: String
+    var isSelected: Bool
+    var action: () -> Void
+    var body: some View {
+        if isSelected {
+            chip.zeroRedGlass(Capsule(), interactive: true)
+        } else {
+            chip
+        }
+    }
+    private var chip: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .padding(.horizontal, 14).padding(.vertical, 9)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? .primary : .secondary)
+    }
+}
+
 /// 极简字标：黑白单色，不引入品牌彩色。
 struct ZeroRedWordmark: View {
     var subtitle: String?
