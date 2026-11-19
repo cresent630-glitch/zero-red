@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-Hans"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZR-SESSION 存储与权限</title>
+<h1>ZR-SESSION 存储与权限</h1><p id="origin"></p>
+<label>合成会话标记 <input id="marker" value="ZR-A"></label>
+<button id="write">写入 Cookie / localStorage / IndexedDB</button><button id="read">读取存储</button>
+<pre id="result" aria-live="polite"></pre>
+<button id="camera">请求相机</button><button id="mic">请求麦克风</button><button id="location">请求定位</button><button id="stop">停止媒体访问</button>
+<p>仅使用合成标记。权限专项请部署受控 HTTPS 站。普通与无痕分别写入不同值后对照；结束无痕后重新读取。</p>
+<script>
+document.querySelector('#origin').textContent = location.origin;
+const result = document.querySelector('#result');
+let tracks = [];
+async function dbAction(mode, value) {
+  const db = await new Promise((resolve,reject)=>{const r=indexedDB.open('zero-red-qa',1);r.onupgradeneeded=()=>r.result.createObjectStore('markers');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  try { return await new Promise((resolve,reject)=>{const tx=db.transaction('markers',mode);const store=tx.objectStore('markers');const r=mode==='readwrite'?store.put(value,'session'):store.get('session');let output;r.onsuccess=()=>output=r.result;tx.oncomplete=()=>resolve(output);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error || Error('aborted'))}); }
+  finally { db.close(); }
+}
+async function read() { result.textContent=JSON.stringify({origin:location.origin,cookie:document.cookie,local:localStorage.getItem('ZR-SESSION'),indexedDB:await dbAction('readonly')},null,2); }
+document.querySelector('#write').onclick=async()=>{try{const v=document.querySelector('#marker').value;document.cookie='ZRSESSION='+encodeURIComponent(v)+'; path=/; SameSite=Lax';localStorage.setItem('ZR-SESSION',v);await dbAction('readwrite',v);await read()}catch(e){result.textContent=String(e)}};
+document.querySelector('#read').onclick=()=>read().catch(e=>result.textContent=String(e));
+function stop(){tracks.forEach(t=>t.stop());tracks=[]}
+async function media(constraints){try{stop();const stream=await navigator.mediaDevices.getUserMedia(constraints);tracks=stream.getTracks();result.textContent='已授权，请点停止结束；'+tracks.map(t=>t.kind).join(',')}catch(e){result.textContent=String(e)}}
+document.querySelector('#camera').onclick=()=>media({video:true});
+document.querySelector('#mic').onclick=()=>media({audio:true});
+document.querySelector('#stop').onclick=()=>{stop();result.textContent='媒体已停止'};
+document.querySelector('#location').onclick=()=>navigator.geolocation.getCurrentPosition(()=>result.textContent='定位已授权（不展示坐标）',e=>result.textContent=e.message);
+addEventListener('pagehide',stop);
+</script></html>

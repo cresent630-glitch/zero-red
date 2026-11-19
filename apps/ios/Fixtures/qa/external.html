@@ -1,0 +1,6 @@
+<!doctype html><html lang="zh-Hans"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>外部协议 QA</title><h1>外部协议 QA</h1><p>只点选测试目标；系统确认时先取消。电话和邮件只验证确认/取消，不实际拨号或发送。</p>
+<ul><li><a href="zerored://open?url=https%3A%2F%2Fexample.com%2F%3Fqa%3D1%26q%3D%25E4%25B8%25AD%25E6%2596%2587">zerored 合法地址</a></li>
+<li><a href="zerored://open?url=javascript%3Aalert(1)">zerored 非法目标应拒绝</a></li>
+<li><a href="zeroredqatestnotinstalled://open">不存在的测试 APP</a></li>
+<li><a href="mailto:qa@example.invalid">邮件确认（取消）</a></li></ul></html>

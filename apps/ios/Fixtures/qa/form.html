@@ -1,0 +1,6 @@
+<!doctype html><html lang="zh-Hans"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZR-FORM 编码与输入</title><h1>ZR-FORM 编码与输入</h1>
+<p>GET 编码回显，不具备 POST 计数/支付幂等后端。</p>
+<form method="get"><label>文本 <input name="text" value="中文 English &amp; + # 😀"></label><label>多行 <textarea name="notes">首行
+第二行</textarea></label><button type="submit">提交 GET</button></form><pre id="result"></pre>
+<script>document.querySelector('#result').textContent=JSON.stringify([...new URLSearchParams(location.search)],null,2)</script></html>
