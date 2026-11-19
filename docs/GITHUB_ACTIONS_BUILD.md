@@ -47,3 +47,19 @@ iOS 工作流只手动触发：交付脚本按当前提交的完整 SHA 触发�
 - 公开仓库的标准托管运行器免计算分钟费；私有大仓/私有仓库另有额度规则，以 GitHub 官方计费说明为准。
 - 托管运行器不能交互操作模拟器：真机相机、网页媒体播放、整体视觉与默认浏览器资格仍需实机人工验收。
 - 不处理外部 PR，不接受外部代码触发构建；修改工作流前先审查。
+
+## 已经打通的记录
+
+2026-11-19 首次端到端验证通过（Windows 工作副本 → GitHub 云构建 → IPA → Windows 校验导入），交付提交 `797ae6c`：
+
+| 项 | 结果 |
+| --- | --- |
+| 云构建运行 | [iOS cloud build #3 · 44556369110](https://github.com/cresent630-glitch/zero-red/actions/runs/44556369110) 成功 |
+| 核心测试 | 54 项通过（`swift test`，`-warnings-as-errors`，离线 fixture 服务） |
+| 模拟器 Release | `BUILD SUCCEEDED`、`ANALYZE SUCCEEDED` |
+| 真机 IPA | `ZeroRed-0.2-3-20261119T153851Z-unsigned.ipa`，918,561 字节，SHA256 `6b92f343…a54e42de`，arm64 / iPhoneOS / iOS 17.0 |
+| 产物发布 | [build-44556369110-1](https://github.com/cresent630-glitch/zero-red/releases/tag/build-44556369110-1)（IPA + 构建日志） |
+| 网页单元测试 | [Web unit tests #2 · 44556179012](https://github.com/cresent630-glitch/zero-red/actions/runs/44556179012) 73 项通过（Node 22） |
+| 未验证 | 真机签名安装与信任、界面测试（默认关闭）、实机视觉与默认浏览器资格 |
+
+首次运行暴露并已修掉的两处问题：job 级 `env` 不能使用 `runner` 上下文（只在步骤级可用）；`$VAR` 紧跟全角标点时必须写成 `${VAR}`，否则变量名会被并入非 ASCII 字符。
