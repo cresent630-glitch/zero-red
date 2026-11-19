@@ -120,9 +120,9 @@ jobs:
           /usr/bin/ditto -c -k --keepParent "$logs" "$RUNNER_TEMP/ZeroRed-build-logs.zip"
           assets+=("$RUNNER_TEMP/ZeroRed-build-logs.zip")
           if [[ "$IPA_OUTCOME" == success ]]; then
-            notes="源码提交 $SOURCE_SHA。IPA 为未签名包，需要用 Sideloadly 在本机签名后安装。"
+            notes="源码提交 ${SOURCE_SHA}。IPA 为未签名包，需要用 Sideloadly 在本机签名后安装。"
           else
-            notes="源码提交 $SOURCE_SHA。真机 IPA 构建未成功，请查看运行日志与本 Release 中的构建日志。"
+            notes="源码提交 ${SOURCE_SHA}。真机 IPA 构建未成功，请查看运行日志与本 Release 中的构建日志。"
           fi
           publish() {
             if ! gh release view "$tag" >/dev/null 2>&1; then
