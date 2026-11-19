@@ -32,4 +32,4 @@
 - 网页：73 项 Node 单元测试通过，含标签/隐私、PDF/DOCX 解析、IndexedDB 模拟迁移、播放器控制状态，以及下载字节/Range 恢复流程。IndexedDB 使用 fake-indexeddb；下载流程使用 Response/ReadableStream 受控响应。
 - App/UI Swift 源码语法检查、OpenStep 工程引用和 Info.plist 检查通过。
 - Xcode 27 构建、8 项 XCUITest、Release 静态分析：**已通过**。真机测试、实际网页浏览器点击回归仍未执行。
-- `.github/workflows/ios.yml` 已准备，但尚未上传到 GitHub 或执行。Mac 本地使用 `scripts/test-ios.sh`。
+- `.github/workflows/ios-cloud-build.yml` 在 GitHub 托管 macOS 运行器上执行核心测试、模拟器 Release 与真机 IPA 打包；交付入口见 `docs/DEV_TO_DELIVERY.md`。

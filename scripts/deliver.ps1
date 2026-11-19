@@ -43,7 +43,29 @@ function Invoke-GitHub([string]$Method, [string]$Url, $Body) {
     $headers = @{ Authorization = "Bearer $script:Token"; 'User-Agent' = 'zero-red-deliver'; Accept = 'application/vnd.github+json' }
     $params = @{ Method = $Method; Uri = $Url; Headers = $headers; UseBasicParsing = $true }
     if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Depth 8); $params.ContentType = 'application/json; charset=utf-8' }
-    return Invoke-RestMethod @params
+    # 只对读取重试：重试触发运行（POST）可能造成重复构建。
+    $attempts = 1
+    if ($Method -eq 'Get') { $attempts = 3 }
+    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+        try { return Invoke-RestMethod @params }
+        catch {
+            if ($attempt -eq $attempts) { throw }
+            Write-Output "GitHub 请求失败（第 $attempt 次），$($attempt * 5) 秒后重试：$($_.Exception.Message)"
+            Start-Sleep -Seconds ($attempt * 5)
+        }
+    }
+}
+function Save-GitHubAsset([string]$Url, [string]$Path) {
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $Url -Headers @{ Authorization = "Bearer $script:Token"; Accept = 'application/octet-stream'; 'User-Agent' = 'zero-red-deliver' } -OutFile $Path -UseBasicParsing
+            return
+        } catch {
+            if ($attempt -eq 3) { throw }
+            Write-Output "下载失败（第 $attempt 次），$($attempt * 5) 秒后重试：$($_.Exception.Message)"
+            Start-Sleep -Seconds ($attempt * 5)
+        }
+    }
 }
 function Get-StepState($Steps, [string]$Name) {
     $step = @($Steps | Where-Object { $_.name -eq $Name } | Select-Object -First 1)[0]
@@ -177,7 +199,7 @@ try {
                 $dir = Join-Path $root "build/reviews/failed-$($run.id)"
                 New-Item -ItemType Directory -Path $dir -Force | Out-Null
                 $zip = Join-Path $dir 'ZeroRed-build-logs.zip'
-                Invoke-WebRequest -Uri $logAsset[0].url -Headers @{ Authorization = "Bearer $script:Token"; Accept = 'application/octet-stream'; 'User-Agent' = 'zero-red-deliver' } -OutFile $zip -UseBasicParsing
+                Save-GitHubAsset $logAsset[0].url $zip
                 Expand-Archive -LiteralPath $zip -DestinationPath $dir -Force
                 Get-ChildItem -LiteralPath $dir -Recurse -Filter '*.log' | ForEach-Object {
                     Write-Output "--- $($_.Name) 末尾 ---"
@@ -206,7 +228,7 @@ try {
     foreach ($asset in $rel.assets) {
         $target = Join-Path $dlDir $asset.name
         Write-Output "下载 $($asset.name)（$([math]::Round($asset.size/1KB,1)) KB）"
-        Invoke-WebRequest -Uri $asset.url -Headers @{ Authorization = "Bearer $script:Token"; Accept = 'application/octet-stream'; 'User-Agent' = 'zero-red-deliver' } -OutFile $target -UseBasicParsing
+        Save-GitHubAsset $asset.url $target
         if ($asset.digest -and $asset.digest -match '^sha256:([0-9a-f]{64})$') {
             $expectedHash = $Matches[1]
             $actualHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
