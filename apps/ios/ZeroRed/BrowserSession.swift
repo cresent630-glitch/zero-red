@@ -99,10 +99,16 @@ final class BrowserSession: ObservableObject {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         let tab = tabs.remove(at: index)
         previews.removeValue(forKey: id)
-        if !tab.isPrivate { recentlyClosed.insert(tab, at: 0); recentlyClosed = Array(recentlyClosed.prefix(10)) }
+        if !tab.isPrivate {
+            // 同一地址只保留最近一次，避免连续关闭时「最近关闭」反复插队刷新。
+            recentlyClosed.removeAll { $0.url == tab.url }
+            recentlyClosed.insert(tab, at: 0)
+            recentlyClosed = Array(recentlyClosed.prefix(10))
+        }
         engines[id]?.suspendMedia(); engines[id]?.webView.stopLoading(); engines.removeValue(forKey: id)
-        if visibleTabs.isEmpty { let fresh = BrowserTabRecord(isPrivate: privateMode); tabs.append(fresh) }
-        if selected == id { selected = visibleTabs.first!.id }
+        // 关掉最后一个标签页就真的没有标签页：不再自动补一个起始页，
+        // 由界面显示「没有打开的页面」。只有切到无痕等显式操作才会新建。
+        if selected == id { selected = visibleTabs.first?.id ?? UUID() }
         if !tabs.contains(where: \.isPrivate) { privateStore = .nonPersistent() }
         scheduleSave()
     }

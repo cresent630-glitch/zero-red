@@ -15,7 +15,11 @@ struct BrowserView: View {
     @State private var player: PlayableItem?
     @State private var shared: SharedItems?
     var body: some View {
-        BrowserPage(engine: session.engine(), session: session, findVisible: $findVisible, tabsAction: { Task { await session.capturePreview(for: session.selected); tabsVisible = true } }, libraryAction: { libraryVisible = true }, siteAction: { websiteVisible = true }, readAction: readCurrent, shareAction: { if let url = session.engine().url { shared = SharedItems(items: [url]) } }, videoAction: {
+        Group {
+            if session.visibleTabs.isEmpty {
+                EmptyTabsView(recentlyClosed: session.recentlyClosed, onCreate: { session.create() }, onReopen: { session.reopen($0) })
+            } else {
+                BrowserPage(engine: session.engine(), session: session, findVisible: $findVisible, siteAction: { websiteVisible = true }, readAction: readCurrent, shareAction: { if let url = session.engine().url { shared = SharedItems(items: [url]) } }, videoAction: {
             Task {
                 let engine = session.engine()
                 if let url = await engine.videoLinks().first {
@@ -24,7 +28,10 @@ struct BrowserView: View {
                     library.downloadError = library.text("当前网页尚未提供可播放的视频。请先在网页内开始播放；若网页要求打开客户端，请尝试桌面网站。", "No playable video is available yet. Start playback on the page first. If the site requires its app, try Desktop website.")
                 }
             }
-        })
+                })
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) { dock }
         .background(Color(uiColor: .systemBackground))
         .overlay { if session.privateMode && scenePhase != .active { Color(uiColor: .systemBackground).overlay(Image(systemName: "eye.slash").font(.largeTitle)) } }
         .preferredColorScheme(library.options.theme == "dark" ? .dark : library.options.theme == "light" ? .light : nil)
@@ -52,7 +59,66 @@ struct BrowserView: View {
         .sheet(item: $shared) { ShareSheet(items: $0.items) }
         .alert(library.text("提示", "Notice"), isPresented: Binding(get: { library.downloadError != nil && !libraryVisible }, set: { if !$0 { library.downloadError = nil } })) { Button(library.text("好", "OK")) { library.downloadError = nil } } message: { Text(library.downloadError ?? "") }
     }
+    /// 放大的底部操作栏：触控区与图标按 App Store 标签栏的量级，五个按钮均分整行。
+    /// 标签按钮只保留一个图标，不再叠加数字徽标（之前两个图形重叠）。
+    private var dock: some View {
+        GlassDock {
+            GlassDockButton(symbol: "chevron.backward", label: library.text("后退", "Back"), identifier: "tool.chevron.left", isEnabled: session.record.canBack || session.engine().canGoBack) { session.move(-1) }
+            GlassDockButton(symbol: "chevron.forward", label: library.text("前进", "Forward"), identifier: "tool.chevron.right", isEnabled: session.record.canForward || session.engine().canGoForward) { session.move(1) }
+            GlassDockButton(symbol: "house", label: library.text("首页", "Home"), identifier: "tool.house") { session.home() }
+            Button { Task { await session.capturePreview(for: session.selected); tabsVisible = true } } label: {
+                Image(systemName: "square.on.square")
+                    .font(.system(size: ZeroRedTheme.dockIcon, weight: .medium))
+                    .frame(width: ZeroRedTheme.dockControl, height: ZeroRedTheme.dockControl)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel(library.text("页面管理", "Manage pages")).accessibilityIdentifier("tool.tabs")
+            GlassDockButton(symbol: "books.vertical", label: library.text("资料库", "Library"), identifier: "tool.books.vertical") { libraryVisible = true }
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 2)
+    }
     private func readCurrent() { Task { do { reader = try await session.engine().article() } catch { library.downloadError = error.localizedDescription } } }
+}
+@MainActor
+private struct EmptyTabsView: View {
+    @EnvironmentObject private var library: LibraryStore
+    var recentlyClosed: [BrowserTabRecord]
+    var onCreate: () -> Void
+    var onReopen: (UUID) -> Void
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 0)
+            Image(systemName: "rectangle.on.rectangle.slash").font(.system(size: 46, weight: .light)).foregroundStyle(.tertiary)
+            VStack(spacing: 6) {
+                Text(library.text("没有打开的页面", "No open pages")).font(.headline)
+                Text(library.text("新建一个页面，或从最近关闭里恢复。", "Open a new page, or restore one from recently closed."))
+                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            GlassProminentButton(title: library.text("新建页面", "New page")) { onCreate() }
+            if !recentlyClosed.isEmpty {
+                VStack(spacing: 6) {
+                    Text(library.text("最近关闭", "Recently closed")).font(.caption2.weight(.semibold)).textCase(.uppercase).tracking(0.9).foregroundStyle(.tertiary)
+                    ForEach(Array(recentlyClosed.prefix(3))) { tab in
+                        Button { onReopen(tab.id) } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.uturn.backward").font(.caption).foregroundStyle(.secondary)
+                                Text(tab.title).font(.footnote).lineLimit(1)
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 9)
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .zeroRedGlass(Capsule(), interactive: true)
+                    }
+                }
+                .padding(.top, 8)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 24)
+    }
 }
 @MainActor
 private struct BrowserPage: View {
@@ -60,8 +126,6 @@ private struct BrowserPage: View {
     @ObservedObject var engine: BrowserEngine
     @ObservedObject var session: BrowserSession
     @Binding var findVisible: Bool
-    var tabsAction: () -> Void
-    var libraryAction: () -> Void
     var siteAction: () -> Void
     var readAction: () -> Void
     var shareAction: () -> Void
@@ -69,10 +133,16 @@ private struct BrowserPage: View {
     @State private var input = ""
     @State private var findText = ""
     @State private var found = true
-    @FocusState private var focused: Bool
+    @State private var focused = false
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if engine.active {
+                VStack(spacing: 8) {
+                    address
+                    if findVisible { findBar }
+                }
+                .padding(.horizontal, 14).padding(.top, 6).padding(.bottom, 8)
+                if engine.progress < 1 { ThinProgressBar(value: engine.progress).padding(.horizontal, 20).padding(.bottom, 4) }
                 ZStack {
                     WebSurface(engine: engine).simultaneousGesture(TapGesture().onEnded { focused = false })
                     if let error = engine.error { errorCard(error) }
@@ -81,52 +151,12 @@ private struct BrowserPage: View {
                 startPage
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomChrome }
         .onAppear { input = engine.url?.absoluteString ?? "" }
         .onChange(of: engine.url) { _, value in input = value?.absoluteString ?? "" }
         .onChange(of: session.selected) { _, _ in input = session.engine().url?.absoluteString ?? "" }
         .onChange(of: findText) { _, _ in find() }
         .sheet(item: $engine.dialog) { dialog in WebDialogView(dialog: dialog) { engine.dialog = nil } }
         .alert(library.text("提示", "Notice"), isPresented: Binding(get: { engine.notice != nil }, set: { if !$0 { engine.notice = nil } })) { Button(library.text("好", "OK")) { engine.notice = nil } } message: { Text(engine.notice ?? "") }
-    }
-    /// 底部玻璃区：进入网页后地址框也在这里，和放大的操作栏叠成 App Store / Safari 的底部形态。
-    private var bottomChrome: some View {
-        VStack(spacing: 8) {
-            if engine.active {
-                if findVisible { findBar }
-                VStack(spacing: 5) {
-                    if engine.progress < 1 { ThinProgressBar(value: engine.progress).padding(.horizontal, 10) }
-                    address
-                }
-            }
-            dock
-        }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 2)
-    }
-    /// 放大的底部操作栏：触控区与图标按 App Store 标签栏的量级，五个按钮均分整行。
-    private var dock: some View {
-        GlassDock {
-            GlassDockButton(symbol: "chevron.backward", label: library.text("后退", "Back"), identifier: "tool.chevron.left", isEnabled: session.record.canBack || engine.canGoBack) { session.move(-1) }
-            GlassDockButton(symbol: "chevron.forward", label: library.text("前进", "Forward"), identifier: "tool.chevron.right", isEnabled: session.record.canForward || engine.canGoForward) { session.move(1) }
-            GlassDockButton(symbol: "house", label: library.text("首页", "Home"), identifier: "tool.house") { session.home() }
-            Button { tabsAction() } label: {
-                Image(systemName: "square.on.square")
-                    .font(.system(size: ZeroRedTheme.dockIcon, weight: .medium))
-                    .overlay(alignment: .topTrailing) {
-                        Text("\(session.visibleTabs.count)")
-                            .font(.system(size: 10, weight: .bold)).monospacedDigit()
-                            .foregroundStyle(Color(uiColor: .systemBackground))
-                            .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(Color(uiColor: .label), in: Capsule())
-                            .offset(x: 9, y: -7)
-                    }
-                    .frame(width: ZeroRedTheme.dockControl, height: ZeroRedTheme.dockControl)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel(library.text("页面管理", "Manage pages")).accessibilityIdentifier("tool.tabs")
-            GlassDockButton(symbol: "books.vertical", label: library.text("资料库", "Library"), identifier: "tool.books.vertical") { libraryAction() }
-        }
     }
     /// 起始页：字标 + 唯一的地址输入框 + 最近访问胶囊。保持极简，不加第二个输入框。
     private var startPage: some View {
@@ -206,9 +236,10 @@ private struct BrowserPage: View {
             } else {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             }
-            TextField(library.text("输入网址或搜索", "Search or enter website"), text: $input).keyboardType(.webSearch).textInputAutocapitalization(.never).autocorrectionDisabled().submitLabel(.go).focused($focused).accessibilityIdentifier("addressInput")
-                .onSubmit { submitAddress() }
-            Button(action: submitAddress) { Image(systemName: "arrow.right.circle.fill").font(.title3).symbolRenderingMode(.hierarchical).frame(width: 44, height: 44).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(library.text("确认前往", "Go to address")).accessibilityIdentifier("addressGo").disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            SelectAllAddressField(text: $input, focused: $focused, placeholder: library.text("输入网址或搜索", "Search or enter website"), identifier: "addressInput") { submitAddress() }
+                .frame(maxWidth: .infinity)
+                .frame(height: 24)
+            ImageSearchButton { keyword in input = keyword; submitAddress() }
             if engine.active {
                 Menu {
                     Button(library.text("刷新", "Reload"), systemImage: "arrow.clockwise") { engine.webView.reload() }
