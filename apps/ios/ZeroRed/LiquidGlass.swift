@@ -4,8 +4,9 @@ import SwiftUI
 /// 玻璃只负责层次与景深，不引入彩色 tint；iOS 26 以下回退到系统材质，
 /// 所以工程仍可部署到 iOS 17，同时在 iOS 27 上使用原生 Liquid Glass。
 enum ZeroRedTheme {
-    static let control: CGFloat = 44
-    static let dockSpacing: CGFloat = 2
+    static let dockControl: CGFloat = 56
+    static let dockIcon: CGFloat = 24
+    static let dockSpacing: CGFloat = 0
     static let cardRadius: CGFloat = 22
     static let contentRadius: CGFloat = 26
     static let maxContentWidth: CGFloat = 560
@@ -44,7 +45,7 @@ struct GlassDock<Content: View>: View {
     var body: some View {
         HStack(spacing: ZeroRedTheme.dockSpacing) { content }
             .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
             .zeroRedGlass(Capsule(), interactive: true)
             .zeroRedGlassGroup(spacing: 6)
     }
@@ -60,8 +61,9 @@ struct GlassDockButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: ZeroRedTheme.control, height: ZeroRedTheme.control)
+                .font(.system(size: ZeroRedTheme.dockIcon, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .frame(height: ZeroRedTheme.dockControl)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
