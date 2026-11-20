@@ -212,6 +212,18 @@ final class ZeroRedUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
+    /// 关掉最后一个页面后必须真的没有页面，而不是自动补一个起始页。
+    func testClosingLastTabShowsEmptyState() {
+        app.buttons["Manage pages"].tap()
+        XCTAssertTrue(app.buttons["Close page"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Close page"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["No open pages"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertFalse(app.buttons["Close page"].exists)
+        capture("08-empty-tabs")
+        app.buttons["New page"].tap()
+        XCTAssertTrue(app.textFields["addressInput"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["No open pages"].exists)
+    }
     func testDesignScreenshots() {
         capture("01-home")
         navigateToFixture()
