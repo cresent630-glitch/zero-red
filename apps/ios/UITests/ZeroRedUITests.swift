@@ -195,6 +195,17 @@ final class ZeroRedUITests: XCTestCase {
     }
     /// 视觉验收用：依次走首页、网页、页面总览、资料库、阅读与设置，各留一张截图。
     /// 工作流把附件导出成 PNG，供人工核对 iOS 27 Liquid Glass 外观。
+    /// 输入地址前先清空：新标签页可能沿用上一个标签的 URL，直接 typeText 会把它拼成
+    /// "http://host/http://host/..." 这样的无效地址，页面自然加载不出来。
+    private func enterAddress(_ value: String) {
+        let input = app.textFields["addressInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        input.tap()
+        if let current = input.value as? String, !current.isEmpty, current != input.placeholderValue {
+            input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count + 4))
+        }
+        input.typeText(value + "\n")
+    }
     private func capture(_ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = name
@@ -209,10 +220,8 @@ final class ZeroRedUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Close page"].firstMatch.waitForExistence(timeout: 5))
         capture("03-pages")
         app.buttons["New"].tap()
-        let input = app.textFields["addressInput"]
-        XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap(); input.typeText("http://localhost:8765/reader-complete.html\n")
-        XCTAssertTrue(app.webViews.staticTexts["First article"].firstMatch.waitForExistence(timeout: 15))
+        enterAddress("http://localhost:8765/reader-complete.html")
+        XCTAssertTrue(app.webViews.staticTexts["First article"].firstMatch.waitForExistence(timeout: 25))
         library()
         capture("04-library-bookmarks")
         app.buttons["History"].tap()
