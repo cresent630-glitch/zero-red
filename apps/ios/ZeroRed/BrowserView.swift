@@ -239,6 +239,8 @@ private struct BrowserPage: View {
             SelectAllAddressField(text: $input, focused: $focused, placeholder: library.text("输入网址或搜索", "Search or enter website"), identifier: "addressInput") { submitAddress() }
                 .frame(maxWidth: .infinity)
                 .frame(height: 24)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { focused = true })
             ImageSearchButton { keyword in input = keyword; submitAddress() }
             if engine.active {
                 Menu {

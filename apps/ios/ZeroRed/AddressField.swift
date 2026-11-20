@@ -37,8 +37,18 @@ struct SelectAllAddressField: UIViewRepresentable {
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.parent = self
         if field.text != text { field.text = text }
-        if focused && !field.isFirstResponder { field.becomeFirstResponder() }
-        else if !focused && field.isFirstResponder { field.resignFirstResponder() }
+        if focused {
+            // 玻璃胶囊的交互层会先吃掉触摸，按下不一定能让 UIKit 自己聚焦；
+            // 这里由 SwiftUI 状态驱动补一次，等本轮更新结束再成为第一响应者。
+            if !field.isFirstResponder {
+                DispatchQueue.main.async {
+                    guard field.window != nil, !field.isFirstResponder else { return }
+                    field.becomeFirstResponder()
+                }
+            }
+        } else if field.isFirstResponder {
+            field.resignFirstResponder()
+        }
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {
