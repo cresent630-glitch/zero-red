@@ -217,8 +217,10 @@ final class ZeroRedUITests: XCTestCase {
         app.buttons["Manage pages"].tap()
         XCTAssertTrue(app.buttons["Close page"].firstMatch.waitForExistence(timeout: 5))
         app.buttons["Close page"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["No open pages"].waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(app.buttons["Close page"].exists)
+        // 页面总览还开着，先关掉它才能看到并操作空态。
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["No open pages"].waitForExistence(timeout: 5), app.debugDescription)
         capture("08-empty-tabs")
         app.buttons["New page"].tap()
         XCTAssertTrue(app.textFields["addressInput"].waitForExistence(timeout: 5))
